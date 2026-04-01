@@ -1,0 +1,5 @@
+fastf1>=3.3.0
+pandas>=2.1.0
+numpy>=1.26.0
+pymysql>=1.1.0
+python-dotenv>=1.0.0
