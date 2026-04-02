@@ -1,78 +1,97 @@
-# FastF1 API 확장 데이터 레퍼런스
+# FastF1 API 종합 데이터 스펙 사전 (Full Data Dictionary)
 
-현재 F1 Telemetry Analytics 프로젝트(Phase 1)에서는 랩 타임, 기본 날씨, 기본 브레이크/스로틀/기어 등 **가장 핵심적인 텔레메트리**만 선별하여 수집하고 있습니다. 
-하지만 FastF1 API는 공식 F1 라이브 타이밍 데이터를 기반으로 훨씬 방대하고 디테일한 정보를 제공합니다. 
-
-Phase 2, Phase 3에서 추가적으로 DB에 적재하여 프론트엔드 대시보드를 풍부하게 만들 수 있는 **"현재 미사용 중인 추가 데이터"**를 정리했습니다.
+이 문서는 FastF1 모듈을 통해 접근할 수 있는 공식 F1 라이브 타이밍/텔레메트리 데이터 속성을 **총망라(Comprehensive)**한 레퍼런스입니다.  
+프로젝트의 현재 상태(Phase 1)를 기준으로 **현재 ETL 파이프라인에서 수집 중인 데이터(✅)**와 **향후 추가 스키마 확장이 가능한 미수집 데이터(🔲)**상태로 구분되어 있습니다.
 
 ---
 
-## 1. 정밀한 트랙 위치 및 차량 주행 궤적 (Position Data)
-현재 ETL은 속도, RPM 등 센서 데이터(`car_data`)만 가져오고 있으며, X/Y 좌표는 NULL로 처리되어 있습니다.
-API의 `pos_data`를 함께 병합하면 다음 데이터가 제공됩니다.
+## 1. 텔레메트리 및 위치 센서 데이터 (Telemetry Data)
+`lap.get_car_data()` 및 `lap.get_pos_data()` 등을 통해 얻을 수 있는 고주파(~18Hz) 센서 데이터 모음입니다. 하나의 데이터프레임으로 머지(Merge)하여 많이 사용합니다.
 
-*   `X`, `Y`, `Z` : 트랙 위 차량의 3차원 위치 좌표
-*   `Distance` : 해당 시각에 차량이 출발 선으로부터 이동한 누적 거리 (트랙 위치 산출용)
-*   **활용 방안**: 
-    - **트랙 맵 시각화**: 프론트엔드에서 드라이버의 실제 주행 궤적(Track Map)을 ECharts나 D3.js로 그릴 판을 깔 수 있습니다.
-    - **속도 히트맵**: 트랙 지도 위에 오버레이하여 어떤 코너에서 브레이킹을 늦게 가져갔는지 색상으로 표시(Heatmap)할 수 있습니다.
+### 기계적/물리 센서 (Car Data)
+*   ✅ `Date` / `SessionTime` / `Time`: 해당 데이터가 기록된 절대 시각 및 세션/랩 기준 상대 시각 경과량
+*   ✅ `Speed`: 차량의 속도 (km/h)
+*   ✅ `RPM`: 엔진 회전수
+*   ✅ `nGear`: 현재 기어 단수 (1~8단, 0은 중립(N))
+*   ✅ `Throttle`: 스로틀 페달 압력 퍼센티지 (0 ~ 100)
+*   ✅ `Brake`: 브레이크 페달 전개 여부 (0 또는 1, Boolean)
+*   ✅ `DRS`: DRS 활성화 상태 지시자 (0~14 값으로 각 상태 표현. 예: 8 이상 활성화)
 
-## 2. 서킷 메타 정보 (Circuit Information)
-API의 `Session.get_circuit_info()`는 해당 그랑프리 서킷의 정밀 마커 데이터를 제공합니다.
-
-*   `corners` : 각 코너의 번호(ex: Turn 1, Turn 2A), X/Y 좌표, 진입 각도(Angle), 출발선부터의 거리(Distance)
-*   `marshal_lights` & `marshal_sectors` : 서킷 곳곳에 배치된 마샬(안전요원) 포스트 및 섹터의 위치 좌표
-*   `rotation` : 공식 트랙 맵과 방위각을 일치시키기 위한 지도 회전 각도(Degrees)
-*   **활용 방안**: 
-    - 트랙 맵을 그릴 때 단순히 선만 긋는 것이 아니라, **특정 텔레메트리 데이터가 "몇 번 코너"에서 발생했는지 매핑**할 수 있습니다 (예: 헤어핀 코너 분석).
-
-## 3. 타이어 전략 세부 데이터 (Tyre & Stint Data)
-`Laps` 오브젝트에는 랩 타임뿐만 아니라 타이어 관리에 대한 아주 귀중한 정보가 포함되어 있습니다.
-
-*   `Compound` : 장착한 타이어 종류 (SOFT, MEDIUM, HARD, INTERMEDIATE, WET)
-*   `TyreLife` : 해당 타이어가 몇 랩째 사용되고 있는지(Age)
-*   `FreshTyre` : 이번 스틴트에 끼운 타이어가 새 타이어(True)인지 중고 타이어(False)인지 여부
-*   `Stint` : 해당 랩이 드라이버의 몇 번째 타이어 스틴트 구간인지
-*   `PitOutTime` / `PitInTime` : 피트인/피트아웃 정확한 시간 정보
-*   **활용 방안**: 
-    - 타이어 컴파운드별 **데그라데이션(타이어 마모도에 따른 랩타임 저하) 차트**를 구현할 수 있습니다.
-    - 각 드라이버의 **피트스탑 전략 타임라인 차트(Stint Chart)** 그리기 (예: "버스타펜은 15랩에 Hard 타이어로 교체함").
-
-## 4. 섹터별 정밀 랩 타임 & 스피드 트랩 (Sectors & Speed Traps)
-LAP 오브젝트는 단순히 `LapTime` 외에도 트랙을 3구간으로 나눈 세부 데이터를 가집니다.
-
-*   `Sector1Time`, `Sector2Time`, `Sector3Time` : 각 섹터별 통과 시간
-*   `SpeedI1`, `SpeedI2`, `SpeedFL`, `SpeedST` : 첫 번째 속도 측정점, 두 번째 측정점, 피니쉬 라인, 그리고 **가장 긴 직선구간에 위치한 최고속도 측정점(Speed Trap)**의 통과 속도(km/h)
-*   `IsPersonalBest` : 해당 랩이 드라이버의 개인 최고 기록인지 여부
-*   `Position` : 해당 랩 종료 시점의 실제 레이스 순위
-*   **활용 방안**:
-    - "드라이버 A가 섹터 1에서는 B보다 빨랐지만, 직선 위주의 섹터 3에서 손해를 봤다"와 같은 **섹터별 유불리 분석** 가능.
-    - **레이스 랩 차트 (Lap Chart)**: 각 랩마다 드라이버들의 순위(Position)가 어떻게 변했는지 꺾은선으로 시각화.
-
-## 5. 레이스 컨트롤 메시지 & 트랙 상태 (Race Control & Status)
-실시간 경기의 흐름을 읽을 수 있는 공식 FIA 메시지들을 그대로 수집할 수 있습니다.
-
-*   `Session.race_control_messages` : 
-    - 트랙 리밋 위반 경고 ("Track limits T4")
-    - 페널티 부과 내용 ("5 second time penalty for Car #1 - Causing a collision")
-    - DRS 사용 활성화/비활성화 시점 ("DRS ENABLED")
-*   `Session.track_status` : 
-    - 트랙의 위험/안전 상태 (1=Green, 2=Yellow, 4=Safety Car, 5=Red Flag, 6=VSC)
-*   **활용 방안**:
-    - 대시보드 우측 하단에 **"레이스 컨트롤 Ticker(전광판)"** 디자인 추가.
-    - 텔레메트리 차트의 배경색을 칠하여 "이 구간에서 속도가 줄어든 이유는 **VSC(가상 세이프티카)** 때문이었다"라는 컨텍스트를 사용자에게 제공.
-
-## 6. 공식 레이스 결과 분류 (Driver Results)
-`Session.results` 에는 경기가 끝난 후 공식 기록이 상세히 집계되어 있습니다.
-
-*   `ClassifiedPosition`, `GridPosition` : 패널티가 적용된 최종 공식 순위 및 스타트 그리드 순위
-*   `Points` : 해당 세션에서 획득한 월드 챔피언십 포인트 
-*   `Status` : "Finished", "+1 Lap", "Collision", "Engine" 등 최종 리타이어(DNF) 원인
-*   **활용 방안**:
-    - 라운드를 선택하면 차트 출력 전, 상단에 **해당 세션의 공식 순위 포디움(1, 2, 3위) 및 패스티스트 랩 스코어보드** 표시 가능.
+### 위치 산출 센서 (Positional Data)
+*   🔲 `X`, `Y`, `Z`: 공식 GPS 기반 트랙 상의 3차원 위치 좌표
+*   🔲 `Distance`: 해당 시각까지 출발 선으로부터 주행한 누적 거리 (랩 내 주행 궤적과 브레이킹 포인트 맵핑용 지표)
+*   ✅ `Source`: 데이터 수집 출처 식별자 (str)
 
 ---
 
-### 결론 및 향후 로드맵 추천
-현재 Phase 1에서는 데이터 파이프라인의 핵심 뼈대(`Lap Time`, `Telemetry(Speed/Brake 등)`)를 성공적으로 구축했습니다.
-이후 고도화(Phase 3) 시점에 위 데이터 중 **Positional X/Y 벡터, Tyre Stints(타이어 전략), Sector Times(섹터별 랩타임)** 세 가지를 DB 스키마에 컬럼으로 추가만 해주면, 곧바로 프로페셔널한 F1 모터스포츠 전략 대시보드로 탈바꿈시킬 수 있습니다.
+## 2. 개별 랩 메타 데이터 및 타이밍 (Timing & Lap Data)
+`session.laps`를 통해 가져오는 드라이버의 각 바퀴별 기록 및 타이어 운영 상태입니다.
+
+### 랩 타이밍 & 퍼포먼스
+*   ✅ `LapTime`: 해당 랩 기록 소요 시간 (`TimdeDelta`)
+*   ✅ `IsPersonalBest`: 해당 랩이 드라이버의 세션 내 개인 최고 기록인지 여부
+*   🔲 `IsFastest`: 해당 랩이 전체 세션에서 가장 빠른 랩인지 여부 (Purple lap)
+*   🔲 `Sector1Time`, `Sector2Time`, `Sector3Time`: 섹터 1, 2, 3별 통과 소요 시간
+*   🔲 `SpeedI1`, `SpeedI2`, `SpeedFL`, `SpeedST`: 주요 스피드 트랩 지점 통과 속도 (km/h)
+    * *(I1, I2: 인터벌 통과 지점, FL: 피니쉬 라인, ST: 트랙 내 가장 긴 직선 최고속 지점)*
+*   🔲 `Deleted`: 트랙 리밋 위반 등의 사유로 해당 랩 타임이 공식 삭제되었는지 여부
+*   🔲 `Position`: 해당 랩 종료 순간 드라이버의 실제 레이스 순위
+*   ✅ `LapNumber`: 현재 주행 바퀴 수
+
+### 타이어 전략 및 피트스탑 (Tyre & Stint)
+*   ✅ `Compound`: 사용 중인 타이어 컴파운드명 (`SOFT`, `MEDIUM`, `HARD`, `INTERMEDIATE`, `WET`)
+*   🔲 `TyreLife`: 타이어를 장착한 이후 굴러간 랩 수 (타이어 노후화 및 데그라데이션 측정용)
+*   🔲 `FreshTyre`: 해당 스틴트 시작 시 새 타이어였는지 중고 타이어였는지 여부
+*   🔲 `Stint`: 이번 랩이 드라이버의 현재 레이스에서 몇 번째 스틴트 구간인지
+*   🔲 `PitOutTime`, `PitInTime`: 차고로 피트인/아웃한 시각 기록 (`TimeDelta` 기반으로 실제 피트스탑 소요 시간 산출 가능)
+
+---
+
+## 3. 기상 정보 (Weather Data)
+`session.weather_data`를 통해 매 1분 주기로 기록되는 서킷의 각종 환경 정보입니다.
+
+*   ✅ `AirTemp`: 현재 대기 온도 (섭씨 °C)
+*   ✅ `TrackTemp`: 현재 트랙 표면 노면 온도 (섭씨 °C)
+*   ✅ `Humidity`: 습도 (%)
+*   ✅ `Pressure`: 기압 (mbar)
+*   ✅ `WindSpeed`: 풍속 (m/s)
+*   ✅ `WindDirection`: 풍향 각도 (0~360도)
+*   ✅ `Rainfall`: 현재 경기장에 비가 오고 있는지 여부 (Boolean. True일 경우 WET/INTER 타이어 필요)
+
+---
+
+## 4. 세션 & 이벤트 상태, 레이스 컨트롤 메시지
+라이브 타이밍 로그를 통해 떨어지는 레이스 진행과 관련된 흐름 데이터입니다. 프론트엔드 Ticker 영역 설계에 적합합니다.
+
+### 기본 레이스 세션 (Session Info)
+*   ✅ `session_info`: 세션 고유 식별자, 개최국, 시티, 서킷 이름, 날짜(Date), 세션 이름(Q, R, FP1 등)
+*   ✅ `total_laps`: 해당 이벤트(본선 혹은 스프린트)의 계획된 총 랩 수치
+
+### 트랙 관제 시스템 (Race Control)
+*   🔲 `track_status`: 현재 트랙의 공식 플래그 상태 변화 로깅
+    * *예: `1`: Green flag, `2`: Yellow flag, `4`: Safety Car, `5`: Red Flag, `6`: Virtual Safety Car 등*
+*   🔲 `race_control_messages`: 대회 공식 심판진(FIA)이 실시간으로 띄워주는 텍스트 메시지.
+    * *예: "Car 1 time penalty", "Track Limits turn 4", "DRS Enabled", "Investigation for Causing a collision"*
+
+---
+
+## 5. 서킷 지리/레이아웃 정보 (Circuit Information)
+트랙 맵을 올바르게 그리고 텔레메트리(Position Data)를 코너 번호와 올바르게 매핑하기 위한 메타데이터입니다.
+(`Session.get_circuit_info()` 로 접근)
+
+*   🔲 `corners`: 서킷 내 모든 코너의 마커 정보.
+    * *(`Number`: 코너 번호, `Angle`: 진입 각도, `X`/`Y`: 마커의 위치좌표, `Distance`: 직선거리 매핑용 누적 미터 수)*
+*   🔲 `marshal_lights` & `marshal_sectors`: 마샬(안전요원 및 디지털 플래그)이 서있는 위치 좌표
+*   🔲 `rotation`: 트랙의 실제 방위(북쪽 기준) 각도. 공식 트랙 도면과 궤적 렌더링(X/Y)의 방향을 동일하게 맞추는 데 사용합니다.
+
+---
+
+## 6. 드라이버 공식 경기 결과표 (Session Results)
+경기가 종료된 직후 공식 집계되는 드라이버별 최종 스탯 기록입니다. (`Session.results`)
+
+*   ✅ `DriverNumber`, `BroadcastName`, `FullName`, `TeamName`, `TeamColor`, `CountryCode`: 기본적인 선수 고유 프로필 및 팀 컬러
+*   🔲 `ClassifiedPosition` / `GridPosition`: (그리드 패널티/타임 옵셋 등을 모두 반영한) 공식 최종 리절트 순위 및 예선에 따른 그리드 출발 위치
+*   🔲 `Points`: 가장 중요한 항목으로 해당 레이스 결과에 따라 얻어간 공식 월드 챔피언십 점수
+*   🔲 `Time` & `Status`: 피니시까지 걸린 총 소요시간. 리타이어한 경우 리타이어 사유
+    * *예: "Finished", "+1 Lap", "Engine", "Collision", "Drive shaft" 등 다양한 원인*
+*   🔲 `Q1`, `Q2`, `Q3` Record: 예선(Qualifying) 세션일 경우 각 녹아웃 섹션 트라이에서 기록한 랩 타임 결과.
