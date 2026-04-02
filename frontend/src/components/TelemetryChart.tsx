@@ -32,13 +32,20 @@ function buildSeries(
   panelIndex: number,
   key: PanelKey,
 ) {
+  const isBrake = key === 'brake'
   return comparisons.map(comp => ({
     name:        `${comp.driver_code}-${key}`,
     type:        'line' as const,
     xAxisIndex:  panelIndex,
     yAxisIndex:  panelIndex,
     symbol:      'none',
-    lineStyle:   { width: 1.5, color: `#${comp.team_color}` },
+    ...(isBrake ? {
+      step:      'end' as const,
+      lineStyle: { width: 1, color: `#${comp.team_color}` },
+      areaStyle: { color: `#${comp.team_color}`, opacity: 0.35 },
+    } : {
+      lineStyle: { width: 1.5, color: `#${comp.team_color}` },
+    }),
     itemStyle:   { color: `#${comp.team_color}` },
     // brake는 boolean → 0/1로 변환
     data: comp.data.time_ms.map((t, i) => {
@@ -115,12 +122,13 @@ export function TelemetryChart({ comparisons }: Props) {
       gridIndex: i,
       type:      'value' as const,
       name:      p.label,
-      nameTextStyle: { color: '#666', fontSize: 10, padding: [0, 0, 0, 45] },
+      nameTextStyle: { color: '#777', fontSize: 10, padding: [0, 0, 0, 45] },
       min:       p.min,
       max:       p.max,
+      ...(p.key === 'gear' ? { interval: 1 } : {}),
       axisLine:  { show: false },
       axisTick:  { show: false },
-      axisLabel: { color: '#666', fontSize: 10 },
+      axisLabel: { color: '#999', fontSize: 10 },
       splitLine: { lineStyle: { color: '#1e1e1e' } },
     })),
 
