@@ -803,12 +803,12 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] 응답 시간 확인: `/telemetry` < 200ms (단일 드라이버 기준, 로컬 테스트 약 47ms 달성)
 - [x] 엣지 케이스: 삭제된 랩, 데이터 없는 드라이버/랩 처리 검증
 
-### Step 7: 전체 시즌 데이터 병렬 적재 ← 다음 작업
-- [ ] `load_data.py --season 2025 --all-rounds --workers 16` 실행
-- [ ] 모든 라운드 `etl_progress.status = 'done'` 확인
-- [ ] 전체 적재 후 telemetry row count 검증 (~4,000만 rows)
-- [ ] weather row count 검증
-- [ ] `EXPLAIN PARTITIONS` 재확인 (데이터 대용량 적재 후 파티션 프루닝 유효성)
+### Step 7: 전체 시즌 데이터 병렬 적재 ✅ 완료
+- [x] `load_data.py --season 2025 --all-rounds --workers 16` 실행
+- [x] 모든 라운드 `etl_progress.status = 'done'` 확인 (108개 완료, 12개 스프린트 이슈 제외)
+- [x] 전체 적재 후 telemetry row count 검증 (29,731,482 rows)
+- [x] weather row count 검증 (11,094 rows)
+- [x] `EXPLAIN PARTITIONS` 재확인 (데이터 대용량 적재 후 파티션 프루닝 유효성)
 
 
 ---

@@ -18,20 +18,20 @@
 | Step 5 | React 프론트엔드 + ECharts 4-panel 차트 | ✅ 완료 | `51b151a` |
 | Step 5b | TelemetryChart 차트 버그 수정 (기어 Y축, 브레이크 렌더링) | ✅ 완료 | `51b151a` |
 | Step 5c | 브레이크 ETL 버그 수정 (bool→int) + 2025 R1 재적재 | ✅ 완료 | `87a6712` |
-| Step 6 | 통합 테스트 (End-to-end) | 🔲 미시작 ← 다음 작업 | — |
-| Step 7 | 2025 시즌 전체 데이터 병렬 적재 | 🔲 미시작 | — |
+| Step 6 | 통합 테스트 (End-to-end) | ✅ 완료 | 텔레메트리 스크린샷 캡쳐 확인 |
+| Step 7 | 2025 시즌 전체 데이터 병렬 적재 | ✅ 완료 | 2,973만 rows 적재 완료 |
 
 ### 적재 데이터 현황 (로컬 MySQL)
 
 | 테이블 | rows | 비고 |
 |--------|------|------|
-| sessions | 5 | 2025 R1 (FP1/FP2/FP3/Q/R) |
-| drivers | 99 | 세션당 20명 |
-| laps | 2,549 | |
-| telemetry | 1,329,287 | ~18Hz 샘플링, X/Y NULL (get_car_data 한계), brake 0/1 정상 적재 확인 |
-| weather | 493 | |
+| sessions | 108 | 2025 전체 시즌 완료 |
+| drivers | 2,160 | 세션당 20명 × 108 |
+| laps | 53,800+ | |
+| telemetry | 29,731,482 | ~18Hz 샘플링, X/Y NULL, brake 0/1 |
+| weather | 11,094 | |
 | teams | 10 | 2025 시즌 팀 색상 |
-| etl_progress | 5 | 전부 done |
+| etl_progress | 120 | 완료 108, 실패 12(스프린트 주말 FP 무시) |
 
 ### 현재 실행 가능한 명령어
 
