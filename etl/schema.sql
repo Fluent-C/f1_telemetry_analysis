@@ -84,9 +84,9 @@ CREATE TABLE laps (
     driver_code      CHAR(3)     NOT NULL,
     lap_number       TINYINT     NOT NULL,
     lap_time_ms      INT,
-    compound         VARCHAR(10),
-    -- 'SOFT','MEDIUM','HARD','INTER','WET','UNKNOWN'
-    -- VARCHAR: 신규 컴파운드 추가 대응
+    compound         VARCHAR(20),
+    -- 'SOFT','MEDIUM','HARD','INTERMEDIATE','WET','UNKNOWN','TEST_UNKNOWN'
+    -- VARCHAR(20): INTERMEDIATE(12자), TEST_UNKNOWN(12자) 대응
     tyre_life        TINYINT,
     is_personal_best BOOLEAN DEFAULT FALSE,
     deleted          BOOLEAN DEFAULT FALSE,
