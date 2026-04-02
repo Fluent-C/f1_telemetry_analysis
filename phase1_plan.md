@@ -795,15 +795,15 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] `fetch_telemetry.py`에서 `.fillna(False).astype(int)` 변환 추가
 - [x] 2025 R1 telemetry 삭제 후 재적재 완료 (1,329,287 rows, brake_true=447,385 검증)
 
-### Step 6: 통합 테스트 ← 다음 작업
-- [ ] 프론트 → 백엔드 → DB 전체 데이터 흐름 확인
-- [ ] 다양한 세션(FP1~R)/드라이버 조합 차트 확인
-- [ ] 크로스헤어 4개 차트 동기화 동작 확인
-- [ ] ETL 재실행 시 중복 데이터 미생성 확인
-- [ ] 응답 시간 확인: `/telemetry` < 200ms (단일 드라이버 기준)
-- [ ] 엣지 케이스: 삭제된 랩, 데이터 없는 드라이버/랩 처리 검증
+### Step 6: 통합 테스트 ✅ 완료
+- [x] 프론트 → 백엔드 → DB 전체 데이터 흐름 확인
+- [x] 다양한 세션(FP1~R)/드라이버 조합 차트 확인 (호주 GP VER vs NOR 확인)
+- [x] 크로스헤어 4개 차트 동기화 동작 확인
+- [x] ETL 재실행 시 중복 데이터 미생성 확인 (force 재실행 후 row 변동 없음)
+- [x] 응답 시간 확인: `/telemetry` < 200ms (단일 드라이버 기준, 로컬 테스트 약 47ms 달성)
+- [x] 엣지 케이스: 삭제된 랩, 데이터 없는 드라이버/랩 처리 검증
 
-### Step 7: 전체 시즌 데이터 병렬 적재
+### Step 7: 전체 시즌 데이터 병렬 적재 ← 다음 작업
 - [ ] `load_data.py --season 2025 --all-rounds --workers 8` 실행
 - [ ] 모든 라운드 `etl_progress.status = 'done'` 확인
 - [ ] 전체 적재 후 telemetry row count 검증 (~4,000만 rows)
