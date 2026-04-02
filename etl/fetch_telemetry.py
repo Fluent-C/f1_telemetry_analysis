@@ -147,6 +147,14 @@ def fetch_telemetry(session, session_db_id: int, season: int) -> pd.DataFrame:
                     'Y':        'y',
                 })
 
+                # [중요] brake boolean → 0/1 정수 변환
+                # FastF1 Brake 컬럼은 pandas bool(True/False)이므로
+                # CSV 직렬화 시 "True"/"False" 문자열로 쓰이고
+                # MySQL LOAD DATA INFILE은 이를 모두 0으로 해석한다.
+                # → BOOLEAN(TINYINT) 컬럼에 올바른 값이 들어가도록 명시적 변환
+                if 'brake' in tel.columns:
+                    tel['brake'] = tel['brake'].fillna(False).astype(int)
+
                 # 필요한 컬럼만 선택 (TEL_COLUMNS 순서와 일치)
                 available = [c for c in TEL_COLUMNS if c in tel.columns]
                 all_chunks.append(tel[available].copy())
