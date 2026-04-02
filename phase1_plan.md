@@ -810,6 +810,11 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] weather row count 검증 (11,094 rows)
 - [x] `EXPLAIN PARTITIONS` 재확인 (데이터 대용량 적재 후 파티션 프루닝 유효성)
 
+### Step 7b: 스프린트 이벤트 누락 핫픽스 ✅ 완료
+- [x] 버그 원인 파악: 2024~25년 FastF1 스프린트 이벤트 포맷이 `sprint_qualifying`으로 변경됨
+- [x] `etl/fetch_sessions.py` 매핑 규칙 업데이트, 오작동 FP2/FP3 세션 DB 삭제
+- [x] 누락된 12개 스프린트 세션(SQ, S) ETL 멱등성 재실행 및 UI 노출 확인
+
 
 ---
 
