@@ -17,16 +17,18 @@ logger = logging.getLogger(__name__)
 
 # 이벤트 포맷별 세션 타입 목록
 EVENT_FORMAT_SESSIONS: dict[str, list[str]] = {
-    'conventional':    ['FP1', 'FP2', 'FP3', 'Q', 'R'],
-    'sprint_shootout': ['FP1', 'SQ',  'S',   'Q', 'R'],
-    'sprint':          ['FP1', 'Q',   'S',   'FP2','R'],
+    'conventional':       ['FP1', 'FP2', 'FP3', 'Q', 'R'],
+    'sprint_shootout':    ['FP1', 'SQ',  'S',   'Q', 'R'],
+    'sprint':             ['FP1', 'Q',   'S',   'FP2','R'],
+    'sprint_qualifying':  ['FP1', 'SQ',  'S',   'Q', 'R'],
 }
 
 # 세션 슬롯 번호 → session_type 매핑 (포맷별)
 SLOT_TO_TYPE: dict[str, dict[int, str]] = {
-    'conventional':    {1:'FP1', 2:'FP2', 3:'FP3', 4:'Q',  5:'R'},
-    'sprint_shootout': {1:'FP1', 2:'SQ',  3:'S',   4:'Q',  5:'R'},
-    'sprint':          {1:'FP1', 2:'Q',   3:'S',   4:'FP2',5:'R'},
+    'conventional':       {1:'FP1', 2:'FP2', 3:'FP3', 4:'Q',  5:'R'},
+    'sprint_shootout':    {1:'FP1', 2:'SQ',  3:'S',   4:'Q',  5:'R'},
+    'sprint':             {1:'FP1', 2:'Q',   3:'S',   4:'FP2',5:'R'},
+    'sprint_qualifying':  {1:'FP1', 2:'SQ',  3:'S',   4:'Q',  5:'R'},
 }
 
 

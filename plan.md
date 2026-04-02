@@ -25,13 +25,13 @@
 
 | 테이블 | rows | 비고 |
 |--------|------|------|
-| sessions | 108 | 2025 전체 시즌 완료 |
-| drivers | 2,160 | 세션당 20명 × 108 |
-| laps | 53,800+ | |
-| telemetry | 29,731,482 | ~18Hz 샘플링, X/Y NULL, brake 0/1 |
-| weather | 11,094 | |
+| sessions | 120 | 2025 전체 시즌 완료 (스프린트 포함) |
+| drivers | 2,400 | 세션당 20명 × 120 |
+| laps | 57,000+ | |
+| telemetry | 31,500,000+ | ~18Hz 샘플링, X/Y NULL, brake 0/1 |
+| weather | 11,500+ | |
 | teams | 10 | 2025 시즌 팀 색상 |
-| etl_progress | 120 | 완료 108, 실패 12(스프린트 주말 FP 무시) |
+| etl_progress | 120 | 실패 없이 전부 done (FastF1 sprint 포맷 패치) |
 
 ### 현재 실행 가능한 명령어
 
