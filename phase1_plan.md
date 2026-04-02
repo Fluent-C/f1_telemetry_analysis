@@ -175,8 +175,8 @@ CREATE TABLE laps (
     driver_code      CHAR(3)     NOT NULL,
     lap_number       TINYINT     NOT NULL,
     lap_time_ms      INT,
-    compound         VARCHAR(10),        -- 'SOFT','MEDIUM','HARD','INTER','WET','UNKNOWN'
-                                         -- VARCHAR: 신규 컴파운드 추가 대응
+    compound         VARCHAR(20),        -- 'SOFT','MEDIUM','HARD','INTERMEDIATE','WET','UNKNOWN'
+                                         -- VARCHAR(20): INTERMEDIATE(12자) 대응 [VARCHAR(10)→20 수정됨]
     tyre_life        TINYINT,
     is_personal_best BOOLEAN DEFAULT FALSE,
     deleted          BOOLEAN DEFAULT FALSE,
@@ -209,7 +209,8 @@ CREATE TABLE telemetry (
     session_time_ms   INT      NOT NULL,   -- 세션 시작 기준 경과 시간(ms) [weather 조인용]
     speed             FLOAT,               -- km/h
     throttle          FLOAT,               -- 0.0 ~ 1.0
-    brake             BOOLEAN,
+    brake             BOOLEAN,             -- [주의] FastF1 Brake는 bool → ETL 시 .fillna(False).astype(int) 변환 필수
+                                            --        CSV 직렬화하면 'True'/'False' 문자열로 쓰여 MySQL이 이를 0으로 해석
     gear              TINYINT,             -- 1~8
     rpm               SMALLINT,
     drs               TINYINT,             -- 0, 8, 10, 12, 14
@@ -740,56 +741,67 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 ## 개발 단계별 체크리스트
 
 ### Step 1: 개발 환경 세팅
-- [ ] Docker Desktop 설치 확인 (`docker --version`)
-- [ ] `docker-compose.yml` 작성 (MySQL 8.0, `--local-infile=1`, `--max_connections=200` 포함)
-- [ ] `docker-compose up -d` 실행 및 MySQL 접속 확인
-- [ ] Python 3.11+ 가상환경 생성 (`etl/`, `backend/` 각각)
-- [ ] React 프로젝트 초기화 + 패키지 설치
-- [ ] FastF1 캐시 워커 디렉토리 사전 생성 (`fastf1_cache/worker_0` ~ `worker_7`)
+- [x] Docker Desktop 설치 확인 (`docker --version`)
+- [x] `docker-compose.yml` 작성 (MySQL 8.0, `--local-infile=1`, `--max_connections=200` 포함)
+- [x] `docker-compose up -d` 실행 및 MySQL 접속 확인
+- [x] Python 3.11+ 가상환경 생성 (`etl/`, `backend/` 각각)
+- [x] React 프로젝트 초기화 + 패키지 설치
+- [x] FastF1 캐시 워커 디렉토리 사전 생성 (`fastf1_cache/worker_0` ~ `worker_7`)
 
 ### Step 2: DB 스키마 구성
-- [ ] `etl/schema.sql` 작성 (sessions, teams, drivers, laps, telemetry, weather, etl_progress)
-- [ ] Docker MySQL에 스키마 적용 확인
-- [ ] `SHOW CREATE TABLE telemetry` 로 RANGE 파티셔닝 적용 확인
-- [ ] `SHOW CREATE TABLE telemetry` 에서 `session_time_ms` 컬럼 존재 확인
-- [ ] `SHOW CREATE TABLE weather` 에서 FK 없이 파티셔닝만 적용됐는지 확인
+- [x] `etl/schema.sql` 작성 (sessions, teams, drivers, laps, telemetry, weather, etl_progress)
+- [x] Docker MySQL에 스키마 적용 확인
+- [x] `SHOW CREATE TABLE telemetry` 로 RANGE 파티셔닝 적용 확인
+- [x] `SHOW CREATE TABLE telemetry` 에서 `session_time_ms` 컬럼 존재 확인
+- [x] `SHOW CREATE TABLE weather` 에서 FK 없이 파티셔닝만 적용됐는지 확인
 
 ### Step 3: ETL — 소규모 테스트 (2025 Round 1)
-- [ ] `fetch_sessions.py`: 2025 Round 1 메타데이터 수집, circuit_key 컨벤션 확인 (`'bahrain_grand_prix'` 형태)
-- [ ] `fetch_telemetry.py`: VER 최빠른 랩 수집, `time_ms`/`session_time_ms` 변환 확인
-- [ ] `fetch_weather.py`: Round 1 날씨 수집, `time_ms` Timedelta→ms 변환 확인
-- [ ] `load_data.py`: INSERT IGNORE 멱등성 테스트 (같은 데이터 2회 적재 → row count 동일 확인)
-- [ ] `load_data.py`: etl_progress 체크포인트 동작 확인 (중단 후 재개 테스트)
-- [ ] `load_data.py`: LOAD DATA LOCAL INFILE 동작 확인 (NULL 컬럼 0 대신 NULL로 저장됐는지 확인)
-- [ ] `load_teams.py`: 팀 색상 추출 및 수동 검토 후 teams 테이블 등록
-- [ ] Round 1 전체 적재 완료 (20 드라이버 × ~55랩)
+- [x] `fetch_sessions.py`: 2025 Round 1 메타데이터 수집, circuit_key 컨벤션 확인
+- [x] `fetch_telemetry.py`: VER 최빠른 랩 수집, `time_ms`/`session_time_ms` 변환 확인
+- [x] `fetch_weather.py`: Round 1 날씨 수집, `time_ms` Timedelta→ms 변환 확인
+- [x] `load_data.py`: INSERT IGNORE 멱등성 테스트 (같은 데이터 2회 적재 → row count 동일 확인)
+- [x] `load_data.py`: etl_progress 체크포인트 동작 확인 (중단 후 재개 테스트)
+- [x] `load_data.py`: LOAD DATA LOCAL INFILE 동작 확인
+- [x] `load_teams.py`: 팀 색상 추출 및 수동 검토 후 teams 테이블 등록
+- [x] Round 1 전체 적재 완료 (20 드라이버 × ~55랩)
 
 ### Step 4: FastAPI 백엔드 구현
-- [ ] `database.py`: SQLAlchemy async + aiomysql 연결 풀 구성
-- [ ] `models.py`: 4개 테이블 ORM 모델 정의 (telemetry에 `session_time_ms` 포함)
-- [ ] `main.py`: 앱 시작 시 `session_season_cache` 로드 로직 구현
-- [ ] `/sessions`, `/drivers` (팀 색상 조인 포함), `/laps` 엔드포인트 구현
-- [ ] `/telemetry`: `session_season_cache` 사용하여 season 추출 → WHERE 조건에 포함
-- [ ] CORS 설정 (`http://localhost:5173` 허용)
-- [ ] Swagger UI(`http://localhost:8000/docs`) 전체 엔드포인트 동작 확인
-- [ ] `EXPLAIN PARTITIONS` 로 `/telemetry` 쿼리가 단일 파티션만 스캔하는지 확인
+- [x] `database.py`: SQLAlchemy async + aiomysql 연결 풀 구성
+- [x] `models.py`: 4개 테이블 ORM 모델 정의 (telemetry에 `session_time_ms` 포함)
+- [x] `main.py`: 앱 시작 시 `session_season_cache` 로드 로직 구현
+- [x] `/sessions`, `/drivers` (팀 색상 조인 포함), `/laps` 엔드포인트 구현
+- [x] `/telemetry`: `session_season_cache` 사용하여 season 추출 → WHERE 조건에 포함
+- [x] CORS 설정 (`http://localhost:5173` 허용)
+- [x] Swagger UI(`http://localhost:8000/docs`) 전체 엔드포인트 동작 확인
+- [x] `EXPLAIN PARTITIONS` 로 `/telemetry` 쿼리가 단일 파티션만 스캔하는지 확인
 
 ### Step 5: React 프론트엔드 구현
-- [ ] `main.tsx`: QueryClient + QueryClientProvider + React.StrictMode 설정
-- [ ] `f1Client.ts`: axios 인스턴스 및 API 호출 함수
-- [ ] `f1.ts`: TypeScript 인터페이스 (Session, Driver, TelemetryData 등)
-- [ ] `hooks/useSessions.ts`, `useDrivers.ts`, `useTelemetry.ts`: useQuery 훅 구현
-- [ ] `SessionSelector`, `DriverSelector`, `LapSelector` 컴포넌트 구현
-- [ ] `TelemetryChart.tsx`: ECharts 4-panel + axisPointer 그룹 크로스헤어 구현
+- [x] `main.tsx`: QueryClient + QueryClientProvider + React.StrictMode 설정
+- [x] `f1Client.ts`: axios 인스턴스 및 API 호출 함수
+- [x] `f1.ts`: TypeScript 인터페이스 (Session, Driver, TelemetryData 등)
+- [x] `hooks/useSessions.ts`, `useDrivers.ts`, `useTelemetry.ts`: useQuery 훅 구현
+- [x] `SessionSelector`, `DriverLapSelector` 컴포넌트 구현 (DriverSelector+LapSelector 통합 형태)
+- [x] `TelemetryChart.tsx`: ECharts 4-panel + axisPointer 그룹 크로스헤어 구현
   - ECharts 이벤트는 `onEvents` prop으로 등록 (Strict Mode 안전)
-- [ ] `Dashboard.tsx`: 전체 레이아웃 조립
+- [x] `App.tsx`: 전체 레이아웃 조립
+- [x] 브라우저에서 실제 차트 렌더링 확인 (ALB vs NOR, 2025 Australian GP 퀵랩 비교)
 
-### Step 6: 통합 테스트
+### Step 5b: TelemetryChart 버그 수정 ✅
+- [x] 기어 Y축 0~1로 고정 문제 → `interval:1`, `min:1`, `max:8` 설정
+- [x] 브레이크 라인 렌더링 안 됨 → `step:'end'` + `areaStyle` 추가
+
+### Step 5c: 브레이크 ETL 버그 수정 ✅
+- [x] FastF1 Brake(bool) → CSV 'True'/'False' → MySQL이 모두 0으로 해석하는 버그 발견
+- [x] `fetch_telemetry.py`에서 `.fillna(False).astype(int)` 변환 추가
+- [x] 2025 R1 telemetry 삭제 후 재적재 완료 (1,329,287 rows, brake_true=447,385 검증)
+
+### Step 6: 통합 테스트 ← 다음 작업
 - [ ] 프론트 → 백엔드 → DB 전체 데이터 흐름 확인
-- [ ] VER vs HAM, 2025 Bahrain GP 퀵랩 비교 차트 렌더링 확인
+- [ ] 다양한 세션(FP1~R)/드라이버 조합 차트 확인
 - [ ] 크로스헤어 4개 차트 동기화 동작 확인
 - [ ] ETL 재실행 시 중복 데이터 미생성 확인
 - [ ] 응답 시간 확인: `/telemetry` < 200ms (단일 드라이버 기준)
+- [ ] 엣지 케이스: 삭제된 랩, 데이터 없는 드라이버/랩 처리 검증
 
 ### Step 7: 전체 시즌 데이터 병렬 적재
 - [ ] `load_data.py --season 2025 --all-rounds --workers 8` 실행
@@ -797,6 +809,7 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [ ] 전체 적재 후 telemetry row count 검증 (~4,000만 rows)
 - [ ] weather row count 검증
 - [ ] `EXPLAIN PARTITIONS` 재확인 (데이터 대용량 적재 후 파티션 프루닝 유효성)
+
 
 ---
 

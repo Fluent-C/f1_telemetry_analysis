@@ -15,8 +15,10 @@
 | Step 2 | DB 스키마 적용 (7개 테이블, RANGE 파티셔닝) | ✅ 완료 | `e535124` |
 | Step 3 | ETL 파이프라인 구현 및 2025 R1 전체 적재 검증 | ✅ 완료 | `ddf8426` |
 | Step 4 | FastAPI 백엔드 4개 엔드포인트 구현 및 검증 | ✅ 완료 | `1c2ab6a` |
-| Step 5 | React 프론트엔드 + ECharts 4-panel 차트 | 🔲 미시작 | — |
-| Step 6 | 통합 테스트 (End-to-end) | 🔲 미시작 | — |
+| Step 5 | React 프론트엔드 + ECharts 4-panel 차트 | ✅ 완료 | `51b151a` |
+| Step 5b | TelemetryChart 차트 버그 수정 (기어 Y축, 브레이크 렌더링) | ✅ 완료 | `51b151a` |
+| Step 5c | 브레이크 ETL 버그 수정 (bool→int) + 2025 R1 재적재 | ✅ 완료 | `87a6712` |
+| Step 6 | 통합 테스트 (End-to-end) | 🔲 미시작 ← 다음 작업 | — |
 | Step 7 | 2025 시즌 전체 데이터 병렬 적재 | 🔲 미시작 | — |
 
 ### 적재 데이터 현황 (로컬 MySQL)
@@ -26,7 +28,7 @@
 | sessions | 5 | 2025 R1 (FP1/FP2/FP3/Q/R) |
 | drivers | 99 | 세션당 20명 |
 | laps | 2,549 | |
-| telemetry | 1,329,287 | ~18Hz 샘플링, X/Y NULL (get_car_data 한계) |
+| telemetry | 1,329,287 | ~18Hz 샘플링, X/Y NULL (get_car_data 한계), brake 0/1 정상 적재 확인 |
 | weather | 493 | |
 | teams | 10 | 2025 시즌 팀 색상 |
 | etl_progress | 5 | 전부 done |
@@ -44,7 +46,7 @@ cd backend && venv/Scripts/activate
 uvicorn app.main:app --reload --port 8000
 # → http://localhost:8000/docs  (Swagger UI)
 
-# 프론트엔드 (Step 5 이후)
+# 프론트엔드
 cd frontend && npm run dev
 # → http://localhost:5173
 ```
@@ -57,6 +59,7 @@ cd frontend && npm run dev
 | FutureWarning | FastF1 `pick_driver` → `pick_drivers` 마이그레이션 완료 |
 | `compound VARCHAR(20)` | 기존 VARCHAR(10)에서 변경 (INTERMEDIATE 12자 대응) |
 | 팀 색상 | `load_teams.py` 를 라운드마다 `--update` 플래그로 실행해야 최신 유지 |
+| brake ETL | FastF1 Brake(bool)을 CSV 직렬화하면 MySQL이 'True'를 0으로 해석. fetch_telemetry.py에서 `.fillna(False).astype(int)` 변환 필수 (수정 완료) |
 
 ---
 
