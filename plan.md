@@ -5,6 +5,61 @@
 
 ---
 
+## 📍 현재 개발 현황 (2026-04-02 기준)
+
+### Phase 1 진행 상태
+
+| Step | 내용 | 상태 | 커밋 |
+|------|------|------|------|
+| Step 1 | 개발 환경 구성 (Docker MySQL, venv, React scaffold) | ✅ 완료 | `781a9a8` |
+| Step 2 | DB 스키마 적용 (7개 테이블, RANGE 파티셔닝) | ✅ 완료 | `e535124` |
+| Step 3 | ETL 파이프라인 구현 및 2025 R1 전체 적재 검증 | ✅ 완료 | `ddf8426` |
+| Step 4 | FastAPI 백엔드 4개 엔드포인트 구현 및 검증 | ✅ 완료 | `1c2ab6a` |
+| Step 5 | React 프론트엔드 + ECharts 4-panel 차트 | 🔲 미시작 | — |
+| Step 6 | 통합 테스트 (End-to-end) | 🔲 미시작 | — |
+| Step 7 | 2025 시즌 전체 데이터 병렬 적재 | 🔲 미시작 | — |
+
+### 적재 데이터 현황 (로컬 MySQL)
+
+| 테이블 | rows | 비고 |
+|--------|------|------|
+| sessions | 5 | 2025 R1 (FP1/FP2/FP3/Q/R) |
+| drivers | 99 | 세션당 20명 |
+| laps | 2,549 | |
+| telemetry | 1,329,287 | ~18Hz 샘플링, X/Y NULL (get_car_data 한계) |
+| weather | 493 | |
+| teams | 10 | 2025 시즌 팀 색상 |
+| etl_progress | 5 | 전부 done |
+
+### 현재 실행 가능한 명령어
+
+```bash
+# ETL
+cd etl && venv/Scripts/activate
+python load_data.py --season 2025 --round 2 --workers 4     # R2 적재
+python load_teams.py --season 2025 --round 2 --update       # 팀 색상 갱신
+
+# 백엔드
+cd backend && venv/Scripts/activate
+uvicorn app.main:app --reload --port 8000
+# → http://localhost:8000/docs  (Swagger UI)
+
+# 프론트엔드 (Step 5 이후)
+cd frontend && npm run dev
+# → http://localhost:5173
+```
+
+### 알려진 제약사항
+
+| 항목 | 내용 |
+|------|------|
+| X/Y 좌표 | `get_car_data()`는 위치 미제공 → telemetry.x/y = NULL. Phase 3 트랙맵에서 `get_pos_data()` 병합 예정 |
+| FutureWarning | FastF1 `pick_driver` → `pick_drivers` 마이그레이션 완료 |
+| `compound VARCHAR(20)` | 기존 VARCHAR(10)에서 변경 (INTERMEDIATE 12자 대응) |
+| 팀 색상 | `load_teams.py` 를 라운드마다 `--update` 플래그로 실행해야 최신 유지 |
+
+---
+
 ## 프로젝트 개요
 
 | 항목 | 내용 |
