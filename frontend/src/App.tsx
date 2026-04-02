@@ -1,121 +1,117 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect } from 'react'
+import { useSessions }      from './hooks/useSessions'
+import { useDrivers }       from './hooks/useDrivers'
+import { useTelemetry }     from './hooks/useTelemetry'
+import { SessionSelector }  from './components/SessionSelector'
+import { DriverLapSelector } from './components/DriverLapSelector'
+import { TelemetryChart }   from './components/TelemetryChart'
 
-function App() {
-  const [count, setCount] = useState(0)
+const CURRENT_SEASON = 2025
+
+export default function App() {
+  // ── 선택 상태 ────────────────────────────────────────
+  const [season]     = useState(CURRENT_SEASON)
+  const [sessionId,  setSessionId]  = useState<number | null>(null)
+  const [driverA,    setDriverA]    = useState<string | null>(null)
+  const [driverB,    setDriverB]    = useState<string | null>(null)
+  const [lapA,       setLapA]       = useState<number | null>(null)
+  const [lapB,       setLapB]       = useState<number | null>(null)
+
+  // ── 서버 상태 ────────────────────────────────────────
+  const { data: sessions, isLoading: sessLoading } = useSessions(season)
+  const { data: drivers }                           = useDrivers(sessionId)
+  const { data: telemetry, isFetching: telLoading } = useTelemetry(
+    sessionId,
+    [driverA, driverB],
+    [lapA, lapB],
+  )
+
+  // 세션 바뀌면 드라이버·랩 초기화
+  useEffect(() => {
+    setDriverA(null); setDriverB(null)
+    setLapA(null);    setLapB(null)
+  }, [sessionId])
+
+  // 드라이버 바뀌면 상대 드라이버와 같지 않게 보정
+  const handleDriverA = (code: string) => {
+    setDriverA(code)
+    if (code === driverB) setDriverB(null)
+    setLapA(null)
+  }
+  const handleDriverB = (code: string) => {
+    setDriverB(code)
+    if (code === driverA) setDriverA(null)
+    setLapB(null)
+  }
+
+  const sessionLabel = sessions?.find(s => s.id === sessionId)
+    ? `R${sessions.find(s => s.id === sessionId)!.round} ${sessions.find(s => s.id === sessionId)!.event_name} — ${sessions.find(s => s.id === sessionId)!.session_type}`
+    : ''
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      {/* ── 헤더 ─────────────────────────────────────── */}
+      <header className="app-header">
+        <h1 className="app-title">F1 Telemetry Analytics</h1>
+        {sessionLabel && <span className="session-label">{sessionLabel}</span>}
+      </header>
+
+      {/* ── 컨트롤 패널 ───────────────────────────────── */}
+      <section className="controls">
+        <div className="control-row">
+          <label className="control-label">Season</label>
+          <span className="season-badge">{season}</span>
+          <label className="control-label">Session</label>
+          {sessLoading
+            ? <span className="loading-text">로딩 중…</span>
+            : <SessionSelector
+                sessions={sessions}
+                selectedSessionId={sessionId}
+                onSelect={setSessionId}
+              />}
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+
+        {sessionId && (
+          <div className="driver-rows">
+            <DriverLapSelector
+              label="A"
+              sessionId={sessionId}
+              drivers={drivers}
+              driverCode={driverA}
+              lapNumber={lapA}
+              onDriver={handleDriverA}
+              onLap={setLapA}
+            />
+            <DriverLapSelector
+              label="B"
+              sessionId={sessionId}
+              drivers={drivers}
+              driverCode={driverB}
+              lapNumber={lapB}
+              onDriver={handleDriverB}
+              onLap={setLapB}
+            />
+          </div>
+        )}
       </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
+      {/* ── 차트 영역 ─────────────────────────────────── */}
+      <section className="chart-section">
+        {telLoading && (
+          <div className="loading-overlay">텔레메트리 로딩 중…</div>
+        )}
+        {telemetry && telemetry.comparisons.length > 0 ? (
+          <TelemetryChart comparisons={telemetry.comparisons} />
+        ) : (
+          !telLoading && (
+            <div className="empty-state">
+              {sessionId
+                ? '드라이버 2명과 랩을 선택하면 비교 차트가 표시됩니다.'
+                : '좌측 상단에서 세션을 선택하세요.'}
+            </div>
+          )
+        )}
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </div>
   )
 }
-
-export default App
