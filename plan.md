@@ -21,6 +21,7 @@
 | Step 6 | 통합 테스트 (End-to-end) | ✅ 완료 | 텔레메트리 스크린샷 캡쳐 확인 |
 | Step 7 | 2025 시즌 전체 데이터 병렬 적재 | ✅ 완료 | 2,973만 rows 적재 완료 |
 | Step 7b | 스프린트 포맷(SQ, S) 누락 버그 핫픽스 | ✅ 완료 | `d755707` (FastF1 포맷 매핑 추가) |
+| Step 8 | 3D/2D 트랙 맵 및 텔레메트리 동기화 UI 구축 | 🚧 진행중 | ETL X,Y,Z 추가 및 재적재 예정 |
 
 ### 적재 데이터 현황 (로컬 MySQL)
 
@@ -56,7 +57,7 @@ cd frontend && npm run dev
 
 | 항목 | 내용 |
 |------|------|
-| X/Y 좌표 | `get_car_data()`는 위치 미제공 → telemetry.x/y = NULL. Phase 3 트랙맵에서 `get_pos_data()` 병합 예정 |
+| X/Y/Z 좌표 | Phase 2 트랙 맵 시각화를 위해 `get_telemetry()`로 ETL 수정 및 Z축 컬럼 반영 작업 진행 중 |
 | FutureWarning | FastF1 `pick_driver` → `pick_drivers` 마이그레이션 완료 |
 | `compound VARCHAR(20)` | 기존 VARCHAR(10)에서 변경 (INTERMEDIATE 12자 대응) |
 | 팀 색상 | `load_teams.py` 를 라운드마다 `--update` 플래그로 실행해야 최신 유지 |

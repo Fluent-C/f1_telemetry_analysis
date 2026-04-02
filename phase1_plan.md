@@ -815,6 +815,13 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] `etl/fetch_sessions.py` 매핑 규칙 업데이트, 오작동 FP2/FP3 세션 DB 삭제
 - [x] 누락된 12개 스프린트 세션(SQ, S) ETL 멱등성 재실행 및 UI 노출 확인
 
+### Step 8: Phase 2 연장 - 3D/2D 트랙 맵 및 실시간 텔레메트리 연동 UI 구축 🚧 진행 중
+- [ ] DB 모델 `models.py`에 Z축 필드 추가 및 Live DB ALTER TABLE 처리
+- [ ] `fetch_telemetry.py` 로직에서 `get_telemetry()`를 사용하여 X, Y, Z 데이터를 모두 받아오도록 수정
+- [ ] 전체 시즌 데이터를 다시 한 번 `--force`로 재적재하여 NULL이었던 공간 좌표 생성
+- [ ] 2D 위에서 내려다보는 일반 뷰(Top-down)와 Z축 과장 지원 3D 뷰 토글 지원 `TrackMap.tsx` 컴포넌트 개발
+- [ ] `TelemetryChart` 마우스 호버 스크롤과 트랙맵 상의 드라이버 팀 컬러 위치 동기화
+
 
 ---
 
