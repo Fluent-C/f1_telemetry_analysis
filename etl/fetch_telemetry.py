@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 TEL_COLUMNS = [
     'season', 'session_id', 'driver_code', 'lap_number',
     'time_ms', 'session_time_ms',
-    'speed', 'throttle', 'brake', 'gear', 'rpm', 'drs', 'x', 'y',
+    'speed', 'throttle', 'brake', 'gear', 'rpm', 'drs', 'x', 'y', 'z',
 ]
 
 
@@ -105,7 +105,7 @@ def fetch_laps(session, session_db_id: int) -> pd.DataFrame:
 def fetch_telemetry(session, session_db_id: int, season: int) -> pd.DataFrame:
     """
     telemetry 테이블 LOAD DATA INFILE용 DataFrame을 반환한다.
-    드라이버별·랩별로 get_car_data()를 호출하여 수집한다.
+    드라이버별·랩별로 get_telemetry()를 호출하여 수집한다.
     session.load(telemetry=True)가 이미 완료된 상태에서 호출해야 한다.
     """
     driver_codes = session.laps['Driver'].dropna().unique()
@@ -121,7 +121,7 @@ def fetch_telemetry(session, session_db_id: int, season: int) -> pd.DataFrame:
                 if pd.isna(lap_num_raw):
                     continue
                 lap_num = int(lap_num_raw)
-                tel = lap.get_car_data()
+                tel = lap.get_telemetry()
                 if tel is None or tel.empty:
                     continue
 
@@ -145,6 +145,7 @@ def fetch_telemetry(session, session_db_id: int, season: int) -> pd.DataFrame:
                     'DRS':      'drs',
                     'X':        'x',
                     'Y':        'y',
+                    'Z':        'z',
                 })
 
                 # [중요] brake boolean → 0/1 정수 변환

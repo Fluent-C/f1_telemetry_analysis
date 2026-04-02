@@ -68,6 +68,9 @@ class TelemetryData(BaseModel):
     gear:     list[Optional[int]]
     rpm:      list[Optional[int]]
     drs:      list[Optional[int]]
+    x:        list[Optional[float]]
+    y:        list[Optional[float]]
+    z:        list[Optional[float]]
 
 
 class DriverTelemetry(BaseModel):

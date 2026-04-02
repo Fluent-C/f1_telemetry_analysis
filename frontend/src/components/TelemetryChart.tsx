@@ -15,6 +15,7 @@ import type { DriverTelemetry } from '../types/f1'
 
 interface Props {
   comparisons: DriverTelemetry[]
+  onHover?: (timeMs: number | null) => void
 }
 
 // 패널 레이아웃 (top%, height% 는 전체 차트 영역 기준)
@@ -58,7 +59,7 @@ function buildSeries(
   }))
 }
 
-export function TelemetryChart({ comparisons }: Props) {
+export function TelemetryChart({ comparisons, onHover }: Props) {
   if (comparisons.length === 0) return null
 
   const option: EChartsOption = {
@@ -145,6 +146,19 @@ export function TelemetryChart({ comparisons }: Props) {
       option={option}
       style={{ height: '600px', width: '100%' }}
       opts={{ renderer: 'canvas' }}
+      onEvents={{
+        updateAxisPointer: (e: any) => {
+          const xInfo = e.axesInfo?.[0]
+          if (xInfo && xInfo.value !== undefined) {
+            onHover?.(xInfo.value)
+          } else {
+            onHover?.(null)
+          }
+        },
+        globalout: () => {
+          onHover?.(null)
+        }
+      }}
       notMerge
     />
   )

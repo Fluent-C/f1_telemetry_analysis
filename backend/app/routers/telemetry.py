@@ -22,7 +22,7 @@ router = APIRouter(prefix='/telemetry', tags=['telemetry'])
 
 _TEL_SQL = text("""
     SELECT
-        time_ms, speed, throttle, brake, gear, rpm, drs
+        time_ms, speed, throttle, brake, gear, rpm, drs, x, y, z
     FROM telemetry
     WHERE season      = :season
       AND session_id  = :session_id
@@ -111,6 +111,9 @@ async def get_telemetry(
             gear     = [r['gear']     for r in rows],
             rpm      = [r['rpm']      for r in rows],
             drs      = [r['drs']      for r in rows],
+            x        = [r['x']        for r in rows],
+            y        = [r['y']        for r in rows],
+            z        = [r['z']        for r in rows],
         )
         comparisons.append(DriverTelemetry(
             driver_code=driver_code,

@@ -5,6 +5,7 @@ import { useTelemetry }     from './hooks/useTelemetry'
 import { SessionSelector }  from './components/SessionSelector'
 import { DriverLapSelector } from './components/DriverLapSelector'
 import { TelemetryChart }   from './components/TelemetryChart'
+import { TrackMap }         from './components/TrackMap'
 
 const CURRENT_SEASON = 2025
 
@@ -16,6 +17,9 @@ export default function App() {
   const [driverB,    setDriverB]    = useState<string | null>(null)
   const [lapA,       setLapA]       = useState<number | null>(null)
   const [lapB,       setLapB]       = useState<number | null>(null)
+
+  // ── 차트 호버 동기화 상태 ────────────────────────────────
+  const [hoverTimeMs, setHoverTimeMs] = useState<number | null>(null)
 
   // ── 서버 상태 ────────────────────────────────────────
   const { data: sessions, isLoading: sessLoading } = useSessions(season)
@@ -101,7 +105,16 @@ export default function App() {
           <div className="loading-overlay">텔레메트리 로딩 중…</div>
         )}
         {telemetry && telemetry.comparisons.length > 0 ? (
-          <TelemetryChart comparisons={telemetry.comparisons} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <TrackMap 
+              comparisons={telemetry.comparisons} 
+              hoverTimeMs={hoverTimeMs} 
+            />
+            <TelemetryChart 
+              comparisons={telemetry.comparisons} 
+              onHover={setHoverTimeMs} 
+            />
+          </div>
         ) : (
           !telLoading && (
             <div className="empty-state">

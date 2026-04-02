@@ -82,6 +82,7 @@ class Telemetry(Base):
     drs             = Column(SmallInteger)
     x               = Column(Float)
     y               = Column(Float)
+    z               = Column(Float)
 
 
 class Weather(Base):

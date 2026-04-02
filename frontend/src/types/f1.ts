@@ -36,6 +36,9 @@ export interface TelemetryData {
   gear:     (number | null)[]
   rpm:      (number | null)[]
   drs:      (number | null)[]
+  x:        (number | null)[]
+  y:        (number | null)[]
+  z:        (number | null)[]
 }
 
 export interface DriverTelemetry {
