@@ -746,7 +746,7 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] `docker-compose up -d` 실행 및 MySQL 접속 확인
 - [x] Python 3.11+ 가상환경 생성 (`etl/`, `backend/` 각각)
 - [x] React 프로젝트 초기화 + 패키지 설치
-- [x] FastF1 캐시 워커 디렉토리 사전 생성 (`fastf1_cache/worker_0` ~ `worker_7`)
+- [x] FastF1 캐시 워커 디렉토리 사전 생성 (`fastf1_cache/worker_0` ~ `worker_15`)
 
 ### Step 2: DB 스키마 구성
 - [x] `etl/schema.sql` 작성 (sessions, teams, drivers, laps, telemetry, weather, etl_progress)
@@ -804,7 +804,7 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] 엣지 케이스: 삭제된 랩, 데이터 없는 드라이버/랩 처리 검증
 
 ### Step 7: 전체 시즌 데이터 병렬 적재 ← 다음 작업
-- [ ] `load_data.py --season 2025 --all-rounds --workers 8` 실행
+- [ ] `load_data.py --season 2025 --all-rounds --workers 16` 실행
 - [ ] 모든 라운드 `etl_progress.status = 'done'` 확인
 - [ ] 전체 적재 후 telemetry row count 검증 (~4,000만 rows)
 - [ ] weather row count 검증
