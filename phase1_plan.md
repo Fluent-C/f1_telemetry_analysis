@@ -888,6 +888,777 @@ volumes:
 
 ---
 
+## Phase 1.5: 배포 전 기능 확장 (Step 9–11)
+
+> **이 섹션은 Phase 2(배포) 전에 반드시 완료해야 할 기능 확장 로드맵입니다.**
+> Antigravity 또는 Claude Code 어느 쪽이 작업하더라도 아래 순서대로 진행하십시오.
+> 각 Step 착수 전 CLAUDE.md의 `현재 진행 중인 작업` 섹션을 먼저 채우십시오.
+
+### 진행 현황
+
+```
+🔲 Step 9  Option A — 랩 데이터 확장 (섹터 타임, 스피드 트랩, 타이어 전략)
+🔲 Step 10 Option B — 레이스 결과 화면 (결과 테이블, 포지션 차트, 갭 차트)
+🔲 Step 11 Option C — 트랙 맵 고도화 (서킷 코너 오버레이, 레이스 컨트롤 메시지)
+```
+
+---
+
+### Step 9: Option A — 랩 데이터 확장
+
+**목표:** 현재 텔레메트리 비교에 "왜 이 랩이 빨랐는가"를 설명하는 계층을 추가한다.
+섹터별 델타 차트와 타이어 스틴트 타임라인을 신설한다.
+
+#### 9-1. DB 스키마 변경
+
+`etl/schema.sql`의 `laps` 테이블 정의에 아래 컬럼을 추가하고,
+**실제 MySQL에는 ALTER TABLE로 반영**한다.
+
+```sql
+-- ① schema.sql laps 테이블 수정 (ADD COLUMN 위치 참고용)
+ALTER TABLE laps
+  ADD COLUMN sector1_ms  INT      AFTER lap_time_ms,
+  ADD COLUMN sector2_ms  INT      AFTER sector1_ms,
+  ADD COLUMN sector3_ms  INT      AFTER sector2_ms,
+  ADD COLUMN speed_i1    FLOAT    AFTER sector3_ms,
+  ADD COLUMN speed_i2    FLOAT    AFTER speed_i1,
+  ADD COLUMN speed_fl    FLOAT    AFTER speed_i2,
+  ADD COLUMN speed_st    FLOAT    AFTER speed_fl,
+  ADD COLUMN fresh_tyre  TINYINT  AFTER tyre_life,
+  ADD COLUMN stint       TINYINT  AFTER fresh_tyre,
+  ADD COLUMN pit_in_ms   INT      AFTER stint,
+  ADD COLUMN pit_out_ms  INT      AFTER pit_in_ms,
+  ADD COLUMN position    TINYINT  AFTER pit_out_ms;
+```
+
+```sql
+-- ② telemetry 테이블 z 컬럼 (Step 8에서 ALTER로 이미 적용됨, schema.sql에만 미반영)
+-- schema.sql의 telemetry 테이블 y FLOAT 다음 줄에 아래 한 줄 추가:
+--   z   FLOAT,
+-- 실제 DB에는 이미 존재하므로 ALTER 불필요. schema.sql 문서 정합성만 맞출 것.
+```
+
+**컬럼 설명:**
+
+| 컬럼 | 타입 | FastF1 소스 | 설명 |
+|------|------|------------|------|
+| `sector1_ms` | INT | `Sector1Time` (Timedelta) | 섹터 1 소요 시간(ms) |
+| `sector2_ms` | INT | `Sector2Time` (Timedelta) | 섹터 2 소요 시간(ms) |
+| `sector3_ms` | INT | `Sector3Time` (Timedelta) | 섹터 3 소요 시간(ms) |
+| `speed_i1` | FLOAT | `SpeedI1` | 섹터 1 스피드 트랩 [km/h] |
+| `speed_i2` | FLOAT | `SpeedI2` | 섹터 2 스피드 트랩 [km/h] |
+| `speed_fl` | FLOAT | `SpeedFL` | 피니시 라인 통과 속도 [km/h] |
+| `speed_st` | FLOAT | `SpeedST` | 메인 직선 스피드 트랩 [km/h] |
+| `fresh_tyre` | TINYINT | `FreshTyre` (bool→0/1) | 신품 타이어 여부 |
+| `stint` | TINYINT | `Stint` | 스틴트 번호 |
+| `pit_in_ms` | INT | `PitInTime` (Timedelta→ms) | 피트 레인 진입 시각 |
+| `pit_out_ms` | INT | `PitOutTime` (Timedelta→ms) | 피트 레인 출구 시각 |
+| `position` | TINYINT | `Position` | 해당 랩 완료 순위 (레이스/스프린트만) |
+
+#### 9-2. ETL 변경 (`etl/fetch_telemetry.py`)
+
+`fetch_laps()` 함수에서 추가 컬럼 수집:
+
+```python
+# fetch_telemetry.py — fetch_laps() 함수 내 컬럼 매핑 추가 예시
+LAPS_EXTRA_COLUMNS = {
+    'Sector1Time':  'sector1_ms',   # Timedelta → _timedelta_to_ms()
+    'Sector2Time':  'sector2_ms',
+    'Sector3Time':  'sector3_ms',
+    'SpeedI1':      'speed_i1',     # float, 직접 사용
+    'SpeedI2':      'speed_i2',
+    'SpeedFL':      'speed_fl',
+    'SpeedST':      'speed_st',
+    'FreshTyre':    'fresh_tyre',   # bool → .fillna(False).astype(int)
+    'Stint':        'stint',        # float → Int64 (nullable)
+    'PitInTime':    'pit_in_ms',    # Timedelta → _timedelta_to_ms()
+    'PitOutTime':   'pit_out_ms',
+    'Position':     'position',     # float → Int64 (nullable)
+}
+
+# Timedelta 컬럼은 기존 _timedelta_to_ms() 함수 재사용:
+# (td_series.dt.total_seconds() * 1000).round(0).astype('Int64')
+```
+
+**주의사항:**
+- `FreshTyre` (bool): `.fillna(False).astype(int)` 변환 필수 (brake와 동일한 패턴)
+- `PitInTime`, `PitOutTime`: 피트스톱 없는 랩은 NaT → `_timedelta_to_ms()` 내 NA 처리 확인
+- `Stint`, `Position`: float NaN이 포함될 수 있음 → `pd.array(..., dtype='Int64')` 처리
+
+#### 9-3. 백엔드 변경
+
+**`backend/app/schemas.py`** — `LapOut` 스키마에 필드 추가:
+
+```python
+class LapOut(BaseModel):
+    # 기존 필드...
+    sector1_ms:   int | None = None
+    sector2_ms:   int | None = None
+    sector3_ms:   int | None = None
+    speed_i1:     float | None = None
+    speed_i2:     float | None = None
+    speed_fl:     float | None = None
+    speed_st:     float | None = None
+    fresh_tyre:   int | None = None
+    stint:        int | None = None
+    pit_in_ms:    int | None = None
+    pit_out_ms:   int | None = None
+    position:     int | None = None
+```
+
+**`backend/app/routers/sessions.py`** — `GET /sessions/{id}/laps` 응답 자동 반영 (ORM 기반이면 컬럼 추가만으로 동작)
+
+#### 9-4. 프론트엔드 신규 컴포넌트
+
+**① `frontend/src/components/SectorDeltaChart.tsx`**
+
+- 드라이버 A vs B 섹터별 델타 막대 차트
+- X축: 섹터 1 / 섹터 2 / 섹터 3
+- Y축: delta(ms) — A가 빠르면 A 색, B가 빠르면 B 색
+- 데이터 소스: `/sessions/{id}/laps` 응답의 `sector1_ms`, `sector2_ms`, `sector3_ms`
+- ECharts `bar` 타입, `markLine`으로 0 기준선 표시
+
+```tsx
+// Props 인터페이스 참고
+interface Props {
+  lapA: LapDetail   // sector1_ms, sector2_ms, sector3_ms 포함
+  lapB: LapDetail
+  colorA: string    // 팀 컬러 hex
+  colorB: string
+}
+```
+
+**② `frontend/src/components/TyreStrategyChart.tsx`**
+
+- 드라이버별 타이어 스틴트 타임라인 (간트 차트 형태)
+- X축: 랩 번호
+- Y축: 드라이버 코드
+- 각 스틴트를 컴파운드 색상 블록으로 표현 (Soft=빨강, Medium=노랑, Hard=흰색, 등)
+- 데이터 소스: `/sessions/{id}/laps` 전체 랩 목록 (stint, compound, fresh_tyre 사용)
+- ECharts `custom` 렌더러 또는 `bar` 타입 + xAxis 랩 번호
+
+**컴파운드 색상 상수:**
+```typescript
+const COMPOUND_COLORS: Record<string, string> = {
+  SOFT:         '#e8002d',
+  MEDIUM:       '#ffd700',
+  HARD:         '#f0f0f0',
+  INTERMEDIATE: '#43b02a',
+  WET:          '#0067ff',
+  UNKNOWN:      '#888888',
+  TEST_UNKNOWN: '#888888',
+}
+```
+
+**③ `frontend/src/types/f1.ts` 수정**
+
+`Lap` 인터페이스에 필드 추가:
+```typescript
+interface Lap {
+  // 기존 필드...
+  sector1_ms:  number | null
+  sector2_ms:  number | null
+  sector3_ms:  number | null
+  speed_i1:    number | null
+  speed_i2:    number | null
+  speed_fl:    number | null
+  speed_st:    number | null
+  fresh_tyre:  number | null
+  stint:       number | null
+  pit_in_ms:   number | null
+  pit_out_ms:  number | null
+  position:    number | null
+}
+```
+
+**④ `frontend/src/App.tsx` 수정**
+
+- `SectorDeltaChart`를 TrackMap과 TelemetryChart 사이에 배치
+- `TyreStrategyChart`는 세션의 모든 드라이버 랩을 불러와 표시 (useLaps hook 활용)
+
+#### 9-5. 데이터 재적재
+
+Step 9 완료 후 2025 시즌 전체 재적재 필요:
+```bash
+cd etl && venv/Scripts/activate
+python load_data.py --season 2025 --all-rounds --workers 16 --force
+```
+
+---
+
+### Step 10: Option B — 레이스 결과 화면
+
+**목표:** 별도의 "결과" 탭을 신설하여 레이스 최종 결과, 랩별 포지션 변화, 리더 대비 갭 차트를 제공한다.
+
+#### 10-1. DB 스키마 (새 테이블)
+
+`etl/schema.sql` 에 아래 테이블 추가:
+
+```sql
+-- ============================================================
+-- 8. session_results — 세션별 공식 결과
+--    레이스, 예선(Q1/Q2/Q3), 스프린트 결과 저장
+-- ============================================================
+CREATE TABLE session_results (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    session_id           INT          NOT NULL,
+    season               SMALLINT     NOT NULL,
+    -- 파티셔닝 없는 테이블이므로 season은 참조용
+    driver_code          CHAR(3)      NOT NULL,
+    classified_position  TINYINT,
+    -- 최종 공식 순위. DNF/DNS는 NULL
+    grid_position        TINYINT,
+    -- 레이스/스프린트 스타트 그리드 순위
+    points               FLOAT,
+    q1_ms                INT,
+    -- 예선 Q1 최속 랩타임(ms). 레이스 세션은 NULL
+    q2_ms                INT,
+    q3_ms                INT,
+    status               VARCHAR(50),
+    -- 'Finished', '+1 Lap', 'Engine', 'Collision', 'DNF' 등
+    UNIQUE KEY uq_result (session_id, driver_code),
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+```
+
+**MySQL에 적용:**
+```sql
+-- Docker MySQL root 접속 후 실행
+-- docker exec -it f1db mysql -uroot -pf1root2025 f1db
+CREATE TABLE session_results ( ... );  -- 위 DDL 전체
+```
+
+#### 10-2. ETL (새 파일: `etl/fetch_results.py`)
+
+```python
+"""
+fetch_results.py
+세션의 공식 결과를 FastF1 session.results DataFrame에서 수집한다.
+
+사용법:
+    from fetch_results import fetch_results
+    rows = fetch_results(session)
+"""
+import pandas as pd
+import fastf1
+
+def _timedelta_to_ms(td_series: pd.Series) -> pd.Series:
+    """Timedelta → ms (정수, nullable Int64)"""
+    return (td_series.dt.total_seconds() * 1000).round(0).astype('Int64')
+
+def fetch_results(session: fastf1.core.Session) -> list[dict]:
+    """
+    session.results DataFrame에서 결과 행을 추출하여 dict 리스트로 반환.
+    session.load()가 호출된 상태여야 함.
+    """
+    results = session.results
+    if results is None or results.empty:
+        return []
+
+    rows = []
+    for _, row in results.iterrows():
+        driver_code = str(row.get('Abbreviation', ''))[:3]
+        if not driver_code:
+            continue
+
+        # Q1/Q2/Q3는 예선 세션에서만 유효
+        q1_ms = _timedelta_to_ms(pd.Series([row.get('Q1')])).iloc[0]
+        q2_ms = _timedelta_to_ms(pd.Series([row.get('Q2')])).iloc[0]
+        q3_ms = _timedelta_to_ms(pd.Series([row.get('Q3')])).iloc[0]
+
+        classified_pos = row.get('ClassifiedPosition')
+        grid_pos       = row.get('GridPosition')
+        points         = row.get('Points')
+        status         = str(row.get('Status', '')) if pd.notna(row.get('Status')) else None
+
+        rows.append({
+            'driver_code':          driver_code,
+            'classified_position':  int(classified_pos) if pd.notna(classified_pos) else None,
+            'grid_position':        int(grid_pos) if pd.notna(grid_pos) else None,
+            'points':               float(points) if pd.notna(points) else None,
+            'q1_ms':                int(q1_ms) if pd.notna(q1_ms) else None,
+            'q2_ms':                int(q2_ms) if pd.notna(q2_ms) else None,
+            'q3_ms':                int(q3_ms) if pd.notna(q3_ms) else None,
+            'status':               status,
+        })
+    return rows
+```
+
+**`etl/load_data.py` 수정 포인트:**
+
+`process_one_session()` 함수 내에서 `insert_results()` 호출 추가:
+```python
+# load_data.py — process_one_session() 내 추가
+from fetch_results import fetch_results
+
+def insert_results(conn, session_id, season, rows):
+    if not rows:
+        return
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO session_results
+            (session_id, season, driver_code, classified_position,
+             grid_position, points, q1_ms, q2_ms, q3_ms, status)
+        VALUES
+            (%(session_id)s, %(season)s, %(driver_code)s, %(classified_position)s,
+             %(grid_position)s, %(points)s, %(q1_ms)s, %(q2_ms)s, %(q3_ms)s, %(status)s)
+        ON DUPLICATE KEY UPDATE
+            classified_position = VALUES(classified_position),
+            grid_position       = VALUES(grid_position),
+            points              = VALUES(points),
+            q1_ms               = VALUES(q1_ms),
+            q2_ms               = VALUES(q2_ms),
+            q3_ms               = VALUES(q3_ms),
+            status              = VALUES(status)
+    """, [{**r, 'session_id': session_id, 'season': season} for r in rows])
+    conn.commit()
+```
+
+#### 10-3. 백엔드 (새 파일)
+
+**`backend/app/schemas.py`** — 스키마 추가:
+```python
+class SessionResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    driver_code:          str
+    classified_position:  int | None
+    grid_position:        int | None
+    points:               float | None
+    q1_ms:                int | None
+    q2_ms:                int | None
+    q3_ms:                int | None
+    status:               str | None
+    # JOIN 필드 (drivers + teams)
+    full_name:            str | None = None
+    team_name:            str | None = None
+    team_color:           str | None = None
+```
+
+**`backend/app/routers/results.py`** — 새 파일:
+```python
+"""
+GET /results?session_id=X
+해당 세션의 공식 결과를 반환한다.
+classified_position 오름차순 정렬. DNF(NULL)는 마지막에 위치.
+"""
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from ..database import get_db
+from ..schemas import SessionResultOut
+
+router = APIRouter(prefix='/results', tags=['results'])
+
+@router.get('', response_model=list[SessionResultOut])
+async def get_results(
+    session_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    sql = text("""
+        SELECT
+            sr.driver_code,
+            sr.classified_position,
+            sr.grid_position,
+            sr.points,
+            sr.q1_ms, sr.q2_ms, sr.q3_ms,
+            sr.status,
+            d.full_name,
+            d.team_name,
+            COALESCE(t.team_color, 'FFFFFF') AS team_color
+        FROM session_results sr
+        LEFT JOIN drivers d
+            ON d.session_id = sr.session_id AND d.driver_code = sr.driver_code
+        LEFT JOIN sessions s ON s.id = sr.session_id
+        LEFT JOIN teams t
+            ON t.team_name = d.team_name AND t.season = s.season
+        WHERE sr.session_id = :session_id
+        ORDER BY
+            sr.classified_position IS NULL,
+            sr.classified_position ASC
+    """)
+    result = await db.execute(sql, {'session_id': session_id})
+    rows = result.mappings().all()
+    return [SessionResultOut(**dict(r)) for r in rows]
+```
+
+**`backend/app/main.py`** — 라우터 등록:
+```python
+from .routers import results
+app.include_router(results.router)
+```
+
+#### 10-4. 프론트엔드 신규 컴포넌트
+
+**① `frontend/src/api/f1Client.ts`** — API 함수 추가:
+```typescript
+export async function fetchResults(sessionId: number): Promise<SessionResult[]> {
+  const { data } = await api.get<SessionResult[]>('/results', {
+    params: { session_id: sessionId },
+  })
+  return data
+}
+```
+
+**② `frontend/src/types/f1.ts`** — 타입 추가:
+```typescript
+export interface SessionResult {
+  driver_code:          string
+  classified_position:  number | null
+  grid_position:        number | null
+  points:               number | null
+  q1_ms:                number | null
+  q2_ms:                number | null
+  q3_ms:                number | null
+  status:               string | null
+  full_name:            string | null
+  team_name:            string | null
+  team_color:           string
+}
+```
+
+**③ `frontend/src/hooks/useResults.ts`** — 훅 신설:
+```typescript
+import { useQuery } from '@tanstack/react-query'
+import { fetchResults } from '../api/f1Client'
+export function useResults(sessionId: number | null) {
+  return useQuery({
+    queryKey: ['results', sessionId],
+    queryFn:  () => fetchResults(sessionId!),
+    enabled:  sessionId !== null,
+  })
+}
+```
+
+**④ `frontend/src/components/ResultsTable.tsx`**
+
+| 컬럼 | 내용 |
+|------|------|
+| POS | classified_position (DNF는 별도 표시) |
+| DRIVER | full_name + driver_code, 팀 색상 좌측 바 |
+| TEAM | team_name |
+| GAP | 1위 대비 누적 갭 (ms → 초.mmm 형식) |
+| PTS | points |
+| STATUS | Finished / +N Laps / 사유 |
+
+**⑤ `frontend/src/components/PositionChart.tsx`**
+
+- 레이스 랩별 포지션 변화 꺾은선 차트
+- X축: 랩 번호, Y축: 포지션 (1이 위쪽, 반전)
+- 데이터 소스: `/sessions/{id}/laps?all_drivers=true` (전체 드라이버 랩 필요)
+- `useLaps` 훅 활용, 세션의 모든 드라이버 랩을 드라이버별로 그룹핑
+
+**⑥ `frontend/src/components/GapChart.tsx`**
+
+- 리더 대비 갭 변화 (누적 랩타임 차이)
+- X축: 랩 번호, Y축: 리더 대비 갭(초)
+- 계산: 각 랩 `lap_time_ms` 누적합 - 리더 누적합
+
+**⑦ `frontend/src/App.tsx`** — 탭 UI 추가:
+
+App.tsx에 탭 전환 상태를 추가하여 "텔레메트리 비교" / "레이스 결과" 탭을 구분:
+```tsx
+const [activeTab, setActiveTab] = useState<'telemetry' | 'results'>('telemetry')
+// 탭 버튼 UI → activeTab에 따라 차트 섹션 또는 결과 섹션 렌더링
+```
+
+---
+
+### Step 11: Option C — 트랙 맵 고도화
+
+**목표:** 서킷 코너 번호를 TrackMap 위에 오버레이하고,
+레이스 컨트롤 메시지(세이프티카, 페널티, 플래그)를 TelemetryChart 배경에 타임라인으로 표시한다.
+
+#### 11-1. DB 스키마 (새 테이블 2개)
+
+`etl/schema.sql` 에 추가:
+
+```sql
+-- ============================================================
+-- 9. circuits — 서킷 코너 및 마샬 섹터 메타데이터
+--    Session.get_circuit_info() 에서 수집
+-- ============================================================
+CREATE TABLE circuits (
+    circuit_key     VARCHAR(50) PRIMARY KEY,
+    -- FastF1 session.event['CircuitKey'] 또는 circuit_info 식별자
+    rotation        FLOAT,
+    -- 트랙 맵을 정확한 방위로 그리기 위한 회전각(도)
+    corners         JSON,
+    -- [{number: 1, letter: '', x: 123.4, y: 456.7, angle: 45.0, distance: 100.0}, ...]
+    marshal_sectors JSON
+    -- [{number: 1, x: ..., y: ...}, ...]
+);
+
+-- ============================================================
+-- 10. race_control_messages — 레이스 컨트롤 메시지
+--     Session.race_control_messages 에서 수집
+-- ============================================================
+CREATE TABLE race_control_messages (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    session_id  INT          NOT NULL,
+    time_ms     INT          NOT NULL,
+    -- 세션 시작 기준 경과 시간(ms)
+    lap_number  TINYINT,
+    category    VARCHAR(30),
+    -- 'Flag', 'SafetyCar', 'Drs', 'TrackSupervisor', 'Other'
+    message     TEXT,
+    flag        VARCHAR(20),
+    -- 'GREEN', 'YELLOW', 'DOUBLE YELLOW', 'RED', 'CHEQUERED',
+    -- 'SAFETY CAR', 'VIRTUAL SAFETY CAR', 'CLEAR' 등
+    driver_code CHAR(3),
+    -- 관련 드라이버 코드 (트랙 리밋 말소 등). 없으면 NULL
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+```
+
+**MySQL에 적용:**
+```sql
+CREATE TABLE circuits ( ... );
+CREATE TABLE race_control_messages ( ... );
+```
+
+#### 11-2. ETL (새 파일 2개)
+
+**`etl/fetch_circuit_info.py`**:
+
+```python
+"""
+fetch_circuit_info.py
+FastF1 session.get_circuit_info() 에서 코너 및 마샬 섹터 데이터를 수집한다.
+circuit_key는 session.event['OfficialEventName'] 대신
+session.event.get('CircuitKey', session.event['Location'])를 사용한다.
+"""
+import json
+import fastf1
+
+def fetch_circuit_info(session: fastf1.core.Session) -> dict | None:
+    """
+    반환값: {'circuit_key': str, 'rotation': float, 'corners': list, 'marshal_sectors': list}
+    데이터 없으면 None 반환.
+    """
+    try:
+        circuit_info = session.get_circuit_info()
+    except Exception:
+        return None
+
+    circuit_key = session.event.get('Location', 'unknown')
+
+    corners = []
+    for _, row in circuit_info.corners.iterrows():
+        corners.append({
+            'number':   int(row['Number']),
+            'letter':   str(row.get('Letter', '')),
+            'x':        float(row['X']),
+            'y':        float(row['Y']),
+            'angle':    float(row.get('Angle', 0)),
+            'distance': float(row.get('Distance', 0)),
+        })
+
+    marshal_sectors = []
+    if hasattr(circuit_info, 'marshal_sectors'):
+        for _, row in circuit_info.marshal_sectors.iterrows():
+            marshal_sectors.append({
+                'number': int(row['Number']),
+                'x':      float(row['X']),
+                'y':      float(row['Y']),
+            })
+
+    return {
+        'circuit_key':     circuit_key,
+        'rotation':        float(getattr(circuit_info, 'rotation', 0)),
+        'corners':         corners,
+        'marshal_sectors': marshal_sectors,
+    }
+```
+
+**`etl/fetch_race_control.py`**:
+
+```python
+"""
+fetch_race_control.py
+FastF1 session.race_control_messages DataFrame에서 레이스 컨트롤 메시지를 수집한다.
+"""
+import pandas as pd
+import fastf1
+
+def fetch_race_control(session: fastf1.core.Session) -> list[dict]:
+    """
+    반환값: dict 리스트 (DB INSERT 용)
+    session.load(messages=True) 가 호출된 상태여야 함.
+    """
+    try:
+        msgs = session.race_control_messages
+    except Exception:
+        return []
+    if msgs is None or msgs.empty:
+        return []
+
+    rows = []
+    for _, row in msgs.iterrows():
+        time_td = row.get('Time')
+        time_ms = None
+        if pd.notna(time_td):
+            time_ms = int(round(time_td.total_seconds() * 1000))
+
+        lap_num = row.get('Lap')
+        driver  = row.get('RacingNumber') or row.get('Driver')
+
+        rows.append({
+            'time_ms':    time_ms,
+            'lap_number': int(lap_num) if pd.notna(lap_num) else None,
+            'category':   str(row.get('Category', ''))[:30],
+            'message':    str(row.get('Message', '')),
+            'flag':       str(row.get('Flag', ''))[:20] if pd.notna(row.get('Flag')) else None,
+            'driver_code': str(driver)[:3] if pd.notna(driver) else None,
+        })
+    return rows
+```
+
+**`etl/load_data.py`** 수정 포인트:
+```python
+# process_one_session() 내 추가
+from fetch_circuit_info import fetch_circuit_info
+from fetch_race_control import fetch_race_control
+
+# session.load() 호출 시 messages=True 추가:
+session.load(telemetry=True, laps=True, weather=True, messages=True)
+
+# 서킷 정보 적재 (라운드당 1번만 — 동일 circuit_key 중복 허용)
+circuit_data = fetch_circuit_info(session)
+if circuit_data:
+    insert_circuit_info(conn, circuit_data)
+
+# 레이스 컨트롤 메시지 적재
+rc_rows = fetch_race_control(session)
+insert_race_control(conn, session_id, rc_rows)
+```
+
+#### 11-3. 백엔드 (새 파일)
+
+**`backend/app/routers/circuits.py`**:
+```python
+"""
+GET /circuits/{circuit_key}
+서킷 코너 및 마샬 섹터 JSON 반환.
+"""
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import text
+from ..database import get_db
+...
+
+@router.get('/{circuit_key}')
+async def get_circuit(circuit_key: str, db=Depends(get_db)):
+    sql = text('SELECT rotation, corners, marshal_sectors FROM circuits WHERE circuit_key = :k')
+    row = (await db.execute(sql, {'k': circuit_key})).mappings().first()
+    if not row:
+        raise HTTPException(404, 'Circuit not found')
+    return dict(row)
+```
+
+**`backend/app/routers/race_control.py`**:
+```python
+"""
+GET /race-control?session_id=X
+레이스 컨트롤 메시지 반환 (time_ms 오름차순).
+"""
+@router.get('')
+async def get_race_control(session_id: int = Query(...), db=Depends(get_db)):
+    sql = text("""
+        SELECT time_ms, lap_number, category, message, flag, driver_code
+        FROM race_control_messages
+        WHERE session_id = :session_id
+        ORDER BY time_ms ASC
+    """)
+    rows = (await db.execute(sql, {'session_id': session_id})).mappings().all()
+    return [dict(r) for r in rows]
+```
+
+**`backend/app/main.py`** — 라우터 등록:
+```python
+from .routers import circuits, race_control
+app.include_router(circuits.router)
+app.include_router(race_control.router)
+```
+
+#### 11-4. 프론트엔드 변경
+
+**① `frontend/src/components/TrackMap.tsx` 수정**
+
+서킷 코너 번호 오버레이 추가:
+- `GET /circuits/{circuit_key}` 로 코너 데이터 수집
+- 2D 모드에서 각 코너 위치에 번호 레이블 표시
+- 3D 모드에서는 코너 번호 scatter3D 포인트로 표시
+
+```tsx
+// TrackMap.tsx 수정 포인트
+// Props에 circuitKey 추가:
+interface Props {
+  comparisons:  DriverTelemetry[]
+  hoverTimeMs:  number | null
+  circuitKey?:  string    // 코너 오버레이용 (optional, 없으면 오버레이 생략)
+}
+
+// useQuery로 코너 데이터 로드:
+const { data: circuitInfo } = useQuery({
+  queryKey: ['circuit', circuitKey],
+  queryFn:  () => fetchCircuit(circuitKey!),
+  enabled:  !!circuitKey,
+})
+
+// 2D option의 series에 코너 레이블 scatter 추가:
+{
+  type: 'effectScatter',
+  data: (circuitInfo?.corners ?? []).map(c => ({
+    value: [c.x, c.y],
+    label: { show: true, formatter: `T${c.number}`, color: '#888', fontSize: 9 }
+  })),
+  symbolSize: 0,
+  animation: false,
+}
+```
+
+**② `frontend/src/components/RaceControlTimeline.tsx`** — 새 파일
+
+- TelemetryChart 위 또는 아래에 플래그/세이프티카 이벤트를 타임라인으로 표시
+- X축: session_time_ms (TelemetryChart의 time_ms와 동기화)
+- 이벤트 종류별 아이콘/색상:
+
+| flag | 표시 색상 |
+|------|----------|
+| SAFETY CAR | 노랑 SC |
+| VIRTUAL SAFETY CAR | 연노랑 VSC |
+| YELLOW / DOUBLE YELLOW | 노랑 |
+| RED | 빨강 |
+| GREEN / CLEAR | 초록 |
+
+- ECharts `markArea` 또는 별도 HTML 오버레이로 구현
+
+**③ `frontend/src/App.tsx`** 수정
+
+- `circuitKey`를 sessions 응답에서 추출하여 TrackMap에 전달
+  ```tsx
+  const session = sessions?.find(s => s.id === sessionId)
+  const circuitKey = session?.circuit_key  // sessions 테이블의 circuit_key 컬럼 활용
+  ```
+- `RaceControlTimeline`을 TelemetryChart 위에 배치 (세션 선택 시 표시)
+
+---
+
+### Phase 1.5 전체 완료 기준 (Definition of Done)
+
+```
+✅ Step 9  섹터 타임 / 스피드 트랩 / 타이어 전략 차트가 로컬 브라우저에서 렌더링됨
+✅ Step 10 레이스 결과 탭에서 결과 테이블 + 포지션 차트 + 갭 차트 렌더링됨
+✅ Step 11 TrackMap에 코너 번호 오버레이됨, 레이스 컨트롤 타임라인 표시됨
+```
+
+### 작업 전 필수 확인
+
+1. CLAUDE.md `현재 진행 중인 작업` 섹션이 비어 있는지 확인
+2. Docker MySQL 실행 중인지 확인: `docker compose ps`
+3. 각 Step 착수 전 `git pull` 로 최신 상태 동기화
+
+---
+
 ## 다음 액션
 
 "Step 1을 시작해줘" 라고 요청하면 `docker-compose.yml`, Python 가상환경 설정,
