@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useSessions }      from './hooks/useSessions'
-import { useDrivers }       from './hooks/useDrivers'
-import { useTelemetry }     from './hooks/useTelemetry'
-import { SessionSelector }  from './components/SessionSelector'
-import { DriverLapSelector } from './components/DriverLapSelector'
-import { TelemetryChart }   from './components/TelemetryChart'
-import { TrackMap }         from './components/TrackMap'
+import { useSessions }        from './hooks/useSessions'
+import { useDrivers }         from './hooks/useDrivers'
+import { useLaps }            from './hooks/useLaps'
+import { useTelemetry }       from './hooks/useTelemetry'
+import { SessionSelector }    from './components/SessionSelector'
+import { DriverLapSelector }  from './components/DriverLapSelector'
+import { TelemetryChart }     from './components/TelemetryChart'
+import { TrackMap }           from './components/TrackMap'
+import { SectorDeltaChart }   from './components/SectorDeltaChart'
+import { TyreStrategyChart }  from './components/TyreStrategyChart'
 
 const CURRENT_SEASON = 2025
 
@@ -24,11 +27,21 @@ export default function App() {
   // ── 서버 상태 ────────────────────────────────────────
   const { data: sessions, isLoading: sessLoading } = useSessions(season)
   const { data: drivers }                           = useDrivers(sessionId)
+  const { data: lapsA }                             = useLaps(sessionId, driverA)
+  const { data: lapsB }                             = useLaps(sessionId, driverB)
   const { data: telemetry, isFetching: telLoading } = useTelemetry(
     sessionId,
     [driverA, driverB],
     [lapA, lapB],
   )
+
+  // SectorDeltaChart용: 선택된 랩 번호에 해당하는 Lap 객체
+  const selectedLapA = lapsA?.find(l => l.lap_number === lapA) ?? null
+  const selectedLapB = lapsB?.find(l => l.lap_number === lapB) ?? null
+
+  // 팀 컬러 (drivers 목록에서 추출)
+  const colorA = drivers?.find(d => d.driver_code === driverA)?.team_color ?? 'FFFFFF'
+  const colorB = drivers?.find(d => d.driver_code === driverB)?.team_color ?? 'FFFFFF'
 
   // 세션 바뀌면 드라이버·랩 초기화
   useEffect(() => {
@@ -104,15 +117,29 @@ export default function App() {
         {telLoading && (
           <div className="loading-overlay">텔레메트리 로딩 중…</div>
         )}
+
+        {/* 타이어 전략: 세션 선택 시 항상 표시 */}
+        {sessionId && (
+          <TyreStrategyChart sessionId={sessionId} />
+        )}
+
         {telemetry && telemetry.comparisons.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <TrackMap 
-              comparisons={telemetry.comparisons} 
-              hoverTimeMs={hoverTimeMs} 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+            <TrackMap
+              comparisons={telemetry.comparisons}
+              hoverTimeMs={hoverTimeMs}
             />
-            <TelemetryChart 
-              comparisons={telemetry.comparisons} 
-              onHover={setHoverTimeMs} 
+            <SectorDeltaChart
+              lapA={selectedLapA}
+              lapB={selectedLapB}
+              colorA={colorA}
+              colorB={colorB}
+              codeA={driverA ?? ''}
+              codeB={driverB ?? ''}
+            />
+            <TelemetryChart
+              comparisons={telemetry.comparisons}
+              onHover={setHoverTimeMs}
             />
           </div>
         ) : (

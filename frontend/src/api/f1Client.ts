@@ -16,6 +16,12 @@ export const fetchLaps = (sessionId: number, driverCode: string): Promise<Lap[]>
     .get<Lap[]>(`/sessions/${sessionId}/laps`, { params: { driver: driverCode } })
     .then(r => r.data)
 
+/** 세션 전체 드라이버 랩 (타이어 전략 차트용) */
+export const fetchAllLaps = (sessionId: number): Promise<Lap[]> =>
+  api
+    .get<Lap[]>(`/sessions/${sessionId}/laps`)
+    .then(r => r.data)
+
 export const fetchTelemetry = (
   sessionId: number,
   drivers: [string, string],

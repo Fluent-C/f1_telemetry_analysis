@@ -100,15 +100,35 @@ def upsert_laps(conn, laps_df: pd.DataFrame) -> None:
         return
     sql = """
         INSERT INTO laps
-            (session_id, driver_code, lap_number, lap_time_ms,
-             compound, tyre_life, is_personal_best, deleted)
+            (session_id, driver_code, lap_number,
+             lap_time_ms, sector1_ms, sector2_ms, sector3_ms,
+             speed_i1, speed_i2, speed_fl, speed_st,
+             compound, tyre_life, fresh_tyre, stint,
+             pit_in_ms, pit_out_ms, position,
+             is_personal_best, deleted)
         VALUES
-            (%(session_id)s, %(driver_code)s, %(lap_number)s, %(lap_time_ms)s,
-             %(compound)s, %(tyre_life)s, %(is_personal_best)s, %(deleted)s)
+            (%(session_id)s, %(driver_code)s, %(lap_number)s,
+             %(lap_time_ms)s, %(sector1_ms)s, %(sector2_ms)s, %(sector3_ms)s,
+             %(speed_i1)s, %(speed_i2)s, %(speed_fl)s, %(speed_st)s,
+             %(compound)s, %(tyre_life)s, %(fresh_tyre)s, %(stint)s,
+             %(pit_in_ms)s, %(pit_out_ms)s, %(position)s,
+             %(is_personal_best)s, %(deleted)s)
         ON DUPLICATE KEY UPDATE
             lap_time_ms      = VALUES(lap_time_ms),
+            sector1_ms       = VALUES(sector1_ms),
+            sector2_ms       = VALUES(sector2_ms),
+            sector3_ms       = VALUES(sector3_ms),
+            speed_i1         = VALUES(speed_i1),
+            speed_i2         = VALUES(speed_i2),
+            speed_fl         = VALUES(speed_fl),
+            speed_st         = VALUES(speed_st),
             compound         = VALUES(compound),
             tyre_life        = VALUES(tyre_life),
+            fresh_tyre       = VALUES(fresh_tyre),
+            stint            = VALUES(stint),
+            pit_in_ms        = VALUES(pit_in_ms),
+            pit_out_ms       = VALUES(pit_out_ms),
+            position         = VALUES(position),
             is_personal_best = VALUES(is_personal_best),
             deleted          = VALUES(deleted)
     """

@@ -49,8 +49,20 @@ class LapOut(BaseModel):
     driver_code:      str
     lap_number:       int
     lap_time_ms:      Optional[int]
+    sector1_ms:       Optional[int]
+    sector2_ms:       Optional[int]
+    sector3_ms:       Optional[int]
+    speed_i1:         Optional[float]
+    speed_i2:         Optional[float]
+    speed_fl:         Optional[float]
+    speed_st:         Optional[float]
     compound:         Optional[str]
     tyre_life:        Optional[int]
+    fresh_tyre:       Optional[int]
+    stint:            Optional[int]
+    pit_in_ms:        Optional[int]
+    pit_out_ms:       Optional[int]
+    position:         Optional[int]
     is_personal_best: bool
     deleted:          bool
 

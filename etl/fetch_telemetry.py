@@ -63,36 +63,85 @@ def fetch_drivers(session, session_db_id: int) -> list[dict]:
     return drivers_list
 
 
+def _td_to_ms_val(val) -> int | None:
+    """단일 Timedelta 값 → ms 정수. NaT/None → None."""
+    if val is None or (hasattr(val, '__class__') and val.__class__.__name__ == 'NaTType'):
+        return None
+    try:
+        if pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(val, 'total_seconds'):
+        return int(round(val.total_seconds() * 1000))
+    return None
+
+
+def _int_or_none(val) -> int | None:
+    if val is None:
+        return None
+    try:
+        if pd.isna(val):
+            return None
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _float_or_none(val) -> float | None:
+    if val is None:
+        return None
+    try:
+        if pd.isna(val):
+            return None
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def fetch_laps(session, session_db_id: int) -> pd.DataFrame:
-    """laps 테이블 INSERT용 DataFrame을 반환한다."""
+    """laps 테이블 INSERT용 DataFrame을 반환한다. (Step 9: 섹터/스피드/타이어/피트 컬럼 포함)"""
     rows = []
     laps = session.laps
 
     for _, lap in laps.iterrows():
-        lap_time_ms = None
-        if pd.notna(lap.get('LapTime')):
-            lt = lap['LapTime']
-            if hasattr(lt, 'total_seconds'):
-                lap_time_ms = int(lt.total_seconds() * 1000)
-
-        tyre_life = None
-        if pd.notna(lap.get('TyreLife')):
+        compound = lap.get('Compound')
+        if compound is not None:
             try:
-                tyre_life = int(lap['TyreLife'])
-            except (ValueError, TypeError):
+                if pd.isna(compound):
+                    compound = None
+            except (TypeError, ValueError):
                 pass
 
-        compound = lap.get('Compound')
-        if pd.isna(compound) if compound is not None else True:
-            compound = None
+        # fresh_tyre: bool → 0/1 (brake와 동일 패턴)
+        fresh_tyre_raw = lap.get('FreshTyre')
+        fresh_tyre = None
+        if fresh_tyre_raw is not None:
+            try:
+                if not pd.isna(fresh_tyre_raw):
+                    fresh_tyre = int(bool(fresh_tyre_raw))
+            except (TypeError, ValueError):
+                pass
 
         rows.append({
             'session_id':       session_db_id,
             'driver_code':      str(lap['Driver']),
             'lap_number':       int(lap['LapNumber']),
-            'lap_time_ms':      lap_time_ms,
+            'lap_time_ms':      _td_to_ms_val(lap.get('LapTime')),
+            'sector1_ms':       _td_to_ms_val(lap.get('Sector1Time')),
+            'sector2_ms':       _td_to_ms_val(lap.get('Sector2Time')),
+            'sector3_ms':       _td_to_ms_val(lap.get('Sector3Time')),
+            'speed_i1':         _float_or_none(lap.get('SpeedI1')),
+            'speed_i2':         _float_or_none(lap.get('SpeedI2')),
+            'speed_fl':         _float_or_none(lap.get('SpeedFL')),
+            'speed_st':         _float_or_none(lap.get('SpeedST')),
             'compound':         compound,
-            'tyre_life':        tyre_life,
+            'tyre_life':        _int_or_none(lap.get('TyreLife')),
+            'fresh_tyre':       fresh_tyre,
+            'stint':            _int_or_none(lap.get('Stint')),
+            'pit_in_ms':        _td_to_ms_val(lap.get('PitInTime')),
+            'pit_out_ms':       _td_to_ms_val(lap.get('PitOutTime')),
+            'position':         _int_or_none(lap.get('Position')),
             'is_personal_best': bool(lap.get('IsPersonalBest', False)),
             'deleted':          bool(lap.get('Deleted', False)),
         })

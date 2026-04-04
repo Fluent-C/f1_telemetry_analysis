@@ -19,13 +19,25 @@ export interface Driver {
 }
 
 export interface Lap {
-  driver_code: string
-  lap_number: number
-  lap_time_ms: number | null
-  compound: string | null
-  tyre_life: number | null
+  driver_code:      string
+  lap_number:       number
+  lap_time_ms:      number | null
+  sector1_ms:       number | null
+  sector2_ms:       number | null
+  sector3_ms:       number | null
+  speed_i1:         number | null
+  speed_i2:         number | null
+  speed_fl:         number | null
+  speed_st:         number | null
+  compound:         string | null
+  tyre_life:        number | null
+  fresh_tyre:       number | null
+  stint:            number | null
+  pit_in_ms:        number | null
+  pit_out_ms:       number | null
+  position:         number | null
   is_personal_best: boolean
-  deleted: boolean
+  deleted:          boolean
 }
 
 export interface TelemetryData {
