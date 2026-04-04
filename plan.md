@@ -5,9 +5,9 @@
 
 ---
 
-## 📍 현재 개발 현황 (2026-04-02 기준)
+## 📍 현재 개발 현황 (2026-04-05 기준)
 
-### Phase 1 진행 상태
+### Phase 1 + Phase 1.5 진행 상태
 
 | Step | 내용 | 상태 | 커밋 |
 |------|------|------|------|
@@ -19,21 +19,24 @@
 | Step 5b | TelemetryChart 차트 버그 수정 (기어 Y축, 브레이크 렌더링) | ✅ 완료 | `51b151a` |
 | Step 5c | 브레이크 ETL 버그 수정 (bool→int) + 2025 R1 재적재 | ✅ 완료 | `87a6712` |
 | Step 6 | 통합 테스트 (End-to-end) | ✅ 완료 | 텔레메트리 스크린샷 캡쳐 확인 |
-| Step 7 | 2025 시즌 전체 데이터 병렬 적재 | ✅ 완료 | 2,973만 rows 적재 완료 |
-| Step 7b | 스프린트 포맷(SQ, S) 누락 버그 핫픽스 | ✅ 완료 | `d755707` (FastF1 포맷 매핑 추가) |
-| Step 8 | 3D/2D 트랙 맵 및 텔레메트리 동기화 UI 구축 | ✅ 완료 | `fetch_telemetry` Z벡터 적재 및 TrackMap UI 동기화 완료 |
+| Step 7 | 2025 시즌 전체 데이터 병렬 적재 | ✅ 완료 | 2,970만 rows 적재 완료 |
+| Step 7b | 스프린트 포맷(SQ, S) 누락 버그 핫픽스 | ✅ 완료 | `d755707` |
+| Step 8 | 3D/2D 트랙 맵 구현 (echarts-gl, hoverTimeMs 동기화) | ✅ 완료 | `cac1cfb` |
+| Step 9 | 랩 데이터 확장 — 섹터 타임, 스피드 트랩, 타이어 전략 차트 | ✅ 완료 | `7140662` |
+| Step 10 | 레이스 결과 화면 (결과 테이블, 포지션 차트, 갭 차트) | 🔲 미완 | — |
+| Step 11 | 트랙 맵 고도화 (코너 오버레이, 레이스 컨트롤 타임라인) | 🔲 미완 | — |
 
-### 적재 데이터 현황 (로컬 MySQL)
+### 적재 데이터 현황 (로컬 MySQL, 2026-04-05)
 
 | 테이블 | rows | 비고 |
 |--------|------|------|
-| sessions | 120 | 2025 전체 시즌 완료 (스프린트 포함) |
-| drivers | 2,400 | 세션당 20명 × 120 |
-| laps | 57,000+ | |
-| telemetry | 31,500,000+ | ~18Hz 샘플링, X/Y NULL, brake 0/1 |
-| weather | 11,500+ | |
+| sessions | 110 | 2025 시즌 (스프린트 포함, etl_progress 기준 108 done) |
+| drivers | 2,335 | |
+| laps | 65,285 | Step 9 이후 sector/speed/tyre/pit 컬럼 추가됨 (현재 NULL → 재적재 필요) |
+| telemetry | 30,195,513 | ~18Hz 샘플링, X/Y/Z 포함, brake 0/1 |
+| weather | 10,936 | |
 | teams | 10 | 2025 시즌 팀 색상 |
-| etl_progress | 120 | 실패 없이 전부 done (FastF1 sprint 포맷 패치) |
+| etl_progress | 108 | done 상태 |
 
 ### 현재 실행 가능한 명령어
 
@@ -53,15 +56,15 @@ cd frontend && npm run dev
 # → http://localhost:5173
 ```
 
-### 알려진 제약사항
+### 알려진 제약사항 / 후속 작업
 
 | 항목 | 내용 |
 |------|------|
-| X/Y/Z 좌표 | Phase 2 트랙 맵 시각화를 위해 `get_telemetry()`로 ETL 수정 및 Z축 컬럼 반영 작업 진행 중 |
-| FutureWarning | FastF1 `pick_driver` → `pick_drivers` 마이그레이션 완료 |
-| `compound VARCHAR(20)` | 기존 VARCHAR(10)에서 변경 (INTERMEDIATE 12자 대응) |
+| **laps 재적재 필요** | Step 9에서 12개 컬럼 추가. 기존 데이터는 NULL → `--force` 재적재 필요 |
+| X/Y/Z 좌표 | `get_telemetry()`로 수집 완료. 일부 세션 미제공 시 NULL |
 | 팀 색상 | `load_teams.py` 를 라운드마다 `--update` 플래그로 실행해야 최신 유지 |
-| brake ETL | FastF1 Brake(bool)을 CSV 직렬화하면 MySQL이 'True'를 0으로 해석. fetch_telemetry.py에서 `.fillna(False).astype(int)` 변환 필수 (수정 완료) |
+| brake ETL | `fetch_telemetry.py`에서 `.fillna(False).astype(int)` 변환 완료 |
+| fresh_tyre ETL | Step 9에서 `bool → 0/1` 변환 추가 완료 (brake와 동일 패턴) |
 
 ---
 

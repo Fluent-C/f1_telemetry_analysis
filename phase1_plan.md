@@ -897,10 +897,31 @@ volumes:
 ### 진행 현황
 
 ```
-🔲 Step 9  Option A — 랩 데이터 확장 (섹터 타임, 스피드 트랩, 타이어 전략)
+✅ Step 9  Option A — 랩 데이터 확장 (섹터 타임, 스피드 트랩, 타이어 전략)  커밋: 7140662
 🔲 Step 10 Option B — 레이스 결과 화면 (결과 테이블, 포지션 차트, 갭 차트)
 🔲 Step 11 Option C — 트랙 맵 고도화 (서킷 코너 오버레이, 레이스 컨트롤 메시지)
 ```
+
+### Step 9 완료 내역 (2026-04-05, 커밋 `7140662`)
+
+| 파일 | 변경 내용 |
+|------|----------|
+| DB `laps` 테이블 | 12개 컬럼 ALTER 추가 (`sector1/2/3_ms`, `speed_i1/i2/fl/st`, `fresh_tyre`, `stint`, `pit_in/out_ms`, `position`) |
+| `etl/fetch_telemetry.py` | `fetch_laps()` 12개 컬럼 수집 (`_td_to_ms_val`, `_int_or_none`, `_float_or_none` 헬퍼 신설) |
+| `etl/load_data.py` | `upsert_laps()` INSERT/UPDATE SQL 20개 컬럼으로 확장 |
+| `backend/app/models.py` | `Lap` ORM 모델 12개 컬럼 추가 |
+| `backend/app/schemas.py` | `LapOut` Pydantic 스키마 12개 필드 추가 |
+| `frontend/src/types/f1.ts` | `Lap` 인터페이스 12개 필드 추가 |
+| `frontend/src/api/f1Client.ts` | `fetchAllLaps()` 신설 (드라이버 필터 없이 세션 전체 랩) |
+| `frontend/src/components/SectorDeltaChart.tsx` | **신규**: 섹터 델타 막대 차트 + 스피드 트랩 툴팁 |
+| `frontend/src/components/TyreStrategyChart.tsx` | **신규**: 컴파운드별 스틴트 타임라인 (간트 형태) |
+| `frontend/src/App.tsx` | TyreStrategyChart(세션 선택 시), SectorDeltaChart(랩 선택 시) 통합 |
+
+> ⚠️ **재적재 필요**: 기존 laps 데이터의 신규 컬럼은 모두 NULL. SectorDeltaChart 동작을 위해 아래 명령 실행:
+> ```bash
+> cd etl && venv/Scripts/activate
+> python load_data.py --season 2025 --all-rounds --workers 16 --force
+> ```
 
 ---
 
