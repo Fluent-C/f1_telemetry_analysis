@@ -7,15 +7,16 @@ F1 텔레메트리 ETL 메인 오케스트레이터
   python load_data.py --season 2025 --round 1 --session R
   python load_data.py --season 2025 --all-rounds
   python load_data.py --season 2025 --all-rounds --workers 4
-  python load_data.py --season 2025 --round 1 --force   # done 상태도 재처리
+  python load_data.py --season 2025 --round 1 --force        # done 상태도 재처리
+  python load_data.py --season 2025 --all-rounds --laps-only  # laps 컬럼만 갱신 (텔레메트리 생략)
 
 처리 순서 (FK 의존성):
   1. sessions  INSERT (upsert)         → session_db_id 확보
   2. drivers   INSERT IGNORE
   3. laps      ON DUPLICATE KEY UPDATE
-  4. telemetry LOAD DATA INFILE
-  5. weather   LOAD DATA INFILE
-  6. etl_progress UPDATE → 'done'
+  4. telemetry LOAD DATA INFILE        ← --laps-only 시 생략
+  5. weather   LOAD DATA INFILE        ← --laps-only 시 생략
+  6. etl_progress UPDATE → 'done'      ← --laps-only 시 생략
 """
 
 import argparse
@@ -244,8 +245,12 @@ def process_one_session(args: tuple) -> dict:
     """
     multiprocessing.Pool 워커 함수.
     반환값: {'season', 'round', 'session_type', 'status', 'tel_rows', 'wx_rows', 'error'}
+
+    args = (season, round_num, session_type, worker_id, force, laps_only)
+      laps_only=True → session.load(laps=True, telemetry=False, weather=False)
+                       laps 갱신만 수행, telemetry/weather/etl_progress 갱신 생략
     """
-    season, round_num, session_type, worker_id, force = args
+    season, round_num, session_type, worker_id, force, laps_only = args
 
     result = {
         'season': season, 'round': round_num, 'session_type': session_type,
@@ -259,13 +264,14 @@ def process_one_session(args: tuple) -> dict:
     fastf1.Cache.enable_cache(cache_dir)
 
     try:
-        # ── 체크포인트: 이미 done이면 스킵 ──────────────
-        if not force and is_done(conn, season, round_num, session_type):
+        # ── 체크포인트: laps-only는 항상 처리 (done 세션도), 일반 모드만 스킵 ──
+        if not laps_only and not force and is_done(conn, season, round_num, session_type):
             logger.info(f"[{season} R{round_num} {session_type}] 이미 완료 → 스킵")
             result['status'] = 'skipped'
             return result
 
-        mark_running(conn, season, round_num, session_type)
+        if not laps_only:
+            mark_running(conn, season, round_num, session_type)
 
         # ── 1. sessions 테이블 upsert ────────────────────
         metas = fetch_session_meta(season, round_num)
@@ -274,14 +280,18 @@ def process_one_session(args: tuple) -> dict:
             raise ValueError(f"세션 메타 없음: {season} R{round_num} {session_type}")
 
         session_db_id = upsert_session(conn, meta)
+        mode_label = '[laps-only]' if laps_only else ''
         logger.info(
-            f"[{season} R{round_num} {session_type}] "
+            f"[{season} R{round_num} {session_type}]{mode_label} "
             f"session_id={session_db_id}  로딩 시작"
         )
 
         # ── 2. FastF1 세션 로드 ──────────────────────────
         ff1_session = fastf1.get_session(season, round_num, session_type)
-        ff1_session.load(telemetry=True, weather=True)
+        if laps_only:
+            ff1_session.load(laps=True, telemetry=False, weather=False)
+        else:
+            ff1_session.load(telemetry=True, weather=True)
 
         # ── 3. drivers INSERT IGNORE ─────────────────────
         drivers = fetch_drivers(ff1_session, session_db_id)
@@ -290,6 +300,13 @@ def process_one_session(args: tuple) -> dict:
         # ── 4. laps ON DUPLICATE KEY UPDATE ─────────────
         laps_df = fetch_laps(ff1_session, session_db_id)
         upsert_laps(conn, laps_df)
+        logger.info(f"  laps: {len(laps_df)} rows 갱신")
+
+        if laps_only:
+            # telemetry/weather/etl_progress 갱신 없이 완료
+            result.update({'status': 'done'})
+            logger.info(f"[{season} R{round_num} {session_type}] laps-only 완료")
+            return result
 
         # ── 5. telemetry LOAD DATA INFILE ────────────────
         tel_df  = fetch_telemetry(ff1_session, session_db_id, season)
@@ -313,7 +330,8 @@ def process_one_session(args: tuple) -> dict:
         error_msg = str(e)
         logger.error(f"[{season} R{round_num} {session_type}] 실패: {error_msg}")
         try:
-            mark_failed(conn, season, round_num, session_type, error_msg)
+            if not laps_only:
+                mark_failed(conn, season, round_num, session_type, error_msg)
         except Exception:
             pass
         result['error'] = error_msg
@@ -396,6 +414,8 @@ def main():
                         help=f'병렬 워커 수 (기본: {ETL_WORKERS})')
     parser.add_argument('--force',      action='store_true',
                         help='이미 done 상태인 세션도 재처리')
+    parser.add_argument('--laps-only',  action='store_true',
+                        help='laps 컬럼만 갱신 (telemetry/weather 생략). Step 9 신규 컬럼 채우기 용도')
     args = parser.parse_args()
 
     if not args.round and not args.all_rounds:
@@ -419,11 +439,13 @@ def main():
         sys.exit(1)
 
     # worker_id 배정
+    laps_only = args.laps_only
     tasks = [
-        (season, rnd, stype, idx % args.workers, args.force)
+        (season, rnd, stype, idx % args.workers, args.force, laps_only)
         for idx, (season, rnd, stype) in enumerate(raw_tasks)
     ]
-    logger.info(f"  총 {len(tasks)}개 세션, workers={args.workers}")
+    mode_str = ' [laps-only 모드]' if laps_only else ''
+    logger.info(f"  총 {len(tasks)}개 세션, workers={args.workers}{mode_str}")
 
     # ── 병렬 처리 ────────────────────────────────
     if args.workers == 1:
