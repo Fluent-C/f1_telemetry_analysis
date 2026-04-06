@@ -125,14 +125,15 @@ Step 9 완료 — 랩 데이터 확장 (섹터/스피드트랩/타이어/피트)
 | `frontend/src/components/TyreStrategyChart.tsx` | **신규**: 컴파운드별 스틴트 타임라인 (간트 형태) |
 | `frontend/src/App.tsx` | TyreStrategyChart(세션 선택 시) + SectorDeltaChart(랩 선택 시) 통합 |
 
-### ⚠️ 데이터 재적재 필요
+### ✅ 데이터 재적재 완료 (2026-04-06)
 
-Step 9 ETL 변경으로 기존 laps 데이터에 섹터/스피드트랩/타이어 컬럼이 NULL입니다.
-UI는 정상 작동하지만 SectorDeltaChart는 재적재 후 데이터가 채워집니다.
+`--laps-only` 플래그로 telemetry 30M 행 생략, laps만 빠르게 갱신 완료.
+2025 시즌 120개 세션 재적재 → 65,655 랩, sector1 90%, speed_st 98.8%, stint 99.3%, compound 100% 채워짐.
 
 ```bash
+# laps 컬럼만 갱신할 때 (telemetry 생략 — 빠름)
 cd etl && venv/Scripts/activate
-python load_data.py --season 2025 --all-rounds --workers 16 --force
+python load_data.py --season 2025 --all-rounds --laps-only --workers 8
 ```
 
 ---
@@ -350,7 +351,7 @@ ETL_MAX_RETRIES=3
 | `etl/fetch_sessions.py` | FastF1 schedule → sessions 메타 (스프린트 포맷 대응 포함) |
 | `etl/fetch_telemetry.py` | `get_telemetry()` 기반, X/Y/Z 좌표 + laps 12개 컬럼 수집 |
 | `etl/fetch_weather.py` | `session.weather_data` → weather DataFrame |
-| `etl/load_data.py` | 멀티프로세스 오케스트레이터, 체크포인트, LOAD DATA INFILE |
+| `etl/load_data.py` | 멀티프로세스 오케스트레이터, 체크포인트, LOAD DATA INFILE, `--laps-only` 지원 |
 | `etl/load_teams.py` | 팀 색상 추출 → teams 테이블 |
 
 ### Backend
@@ -385,4 +386,4 @@ ETL_MAX_RETRIES=3
 
 ---
 
-*최종 업데이트: 2026-04-05 | Claude Code | Step 9 완료 (섹터 타임·스피드트랩·타이어 전략), Step 10·11 대기 중*
+*최종 업데이트: 2026-04-06 | Claude Code | Step 9 완료 + laps 재적재 완료 (--laps-only), Step 10·11 대기 중*

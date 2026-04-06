@@ -1097,11 +1097,17 @@ interface Lap {
 - `SectorDeltaChart`를 TrackMap과 TelemetryChart 사이에 배치
 - `TyreStrategyChart`는 세션의 모든 드라이버 랩을 불러와 표시 (useLaps hook 활용)
 
-#### 9-5. 데이터 재적재
+#### 9-5. 데이터 재적재 ✅ 완료 (2026-04-06)
 
-Step 9 완료 후 2025 시즌 전체 재적재 필요:
+`--laps-only` 플래그(load_data.py에 추가됨)로 telemetry 30M 행 생략, laps만 빠르게 갱신.
+2025 시즌 120개 세션 완료 → 65,655 랩, sector1 90%, speed_st 98.8%, compound 100%.
+
 ```bash
+# laps 컬럼만 갱신 (telemetry 생략 — 수 분 소요)
 cd etl && venv/Scripts/activate
+python load_data.py --season 2025 --all-rounds --laps-only --workers 8
+
+# 전체 재적재가 필요한 경우 (텔레메트리 포함 — 수 시간 소요)
 python load_data.py --season 2025 --all-rounds --workers 16 --force
 ```
 

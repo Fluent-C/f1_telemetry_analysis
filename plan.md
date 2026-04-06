@@ -32,7 +32,7 @@
 |--------|------|------|
 | sessions | 110 | 2025 시즌 (스프린트 포함, etl_progress 기준 108 done) |
 | drivers | 2,335 | |
-| laps | 65,285 | Step 9 이후 sector/speed/tyre/pit 컬럼 추가됨 (현재 NULL → 재적재 필요) |
+| laps | 65,655 | Step 9 이후 sector/speed/tyre/pit 컬럼 추가됨. --laps-only로 재적재 완료 (2026-04-06) |
 | telemetry | 30,195,513 | ~18Hz 샘플링, X/Y/Z 포함, brake 0/1 |
 | weather | 10,936 | |
 | teams | 10 | 2025 시즌 팀 색상 |
@@ -60,7 +60,7 @@ cd frontend && npm run dev
 
 | 항목 | 내용 |
 |------|------|
-| **laps 재적재 필요** | Step 9에서 12개 컬럼 추가. 기존 데이터는 NULL → `--force` 재적재 필요 |
+| **laps 재적재 완료** | Step 9에서 12개 컬럼 추가. `--laps-only` 플래그로 2026-04-06 재적재 완료 (65,655 랩) |
 | X/Y/Z 좌표 | `get_telemetry()`로 수집 완료. 일부 세션 미제공 시 NULL |
 | 팀 색상 | `load_teams.py` 를 라운드마다 `--update` 플래그로 실행해야 최신 유지 |
 | brake ETL | `fetch_telemetry.py`에서 `.fillna(False).astype(int)` 변환 완료 |
