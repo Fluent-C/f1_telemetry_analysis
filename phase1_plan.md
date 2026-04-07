@@ -822,6 +822,14 @@ prop drilling이 3단계 이상 발생하는 시점이 Zustand 도입 신호다.
 - [x] 2D 위에서 내려다보는 일반 뷰(Top-down)와 Z축 과장 지원 3D 뷰 토글 지원 `TrackMap.tsx` 컴포넌트 개발
 - [x] `TelemetryChart` 마우스 호버 스크롤과 트랙맵 상의 드라이버 팀 컬러 위치 동기화
 
+### Step 8b: TrackMap UI 고도화 ✅ 완료 (2026-04-07)
+- [x] 3D/2D 뷰를 토글 대신 **2컬럼 동시 표시**로 전환 (`flex` 레이아웃)
+- [x] 3D 트랙 컬러링을 속도 기반 → **고도(Z값) 기반 그라디언트**로 교체 (`ELEV_COLORS`: 파랑→초록→노랑→주황→빨강)
+- [x] ECharts `visualMap` 범례 숨기고 **HTML 그라디언트 바** 커스텀 범례로 대체 (기존 세로 길쭉 레이아웃 문제 해결)
+- [x] 컨트롤 바에 카메라 슬라이더 4개 추가: Z Scale, Angle(alpha 5-85°), Rotation(beta -180~180°), Zoom(distance 80-400)
+- [x] 두 드라이버 위치 항상 표시 (hoverTimeMs null이어도 랩 중간 지점 기본 표시)
+- [x] 드라이버 두 명 선택 시 **화면 블랭크 버그 수정**: `useRef+useEffect`→`inst.setOption({series:[null,...]})` 방식이 echarts-gl에서 크래시 유발. activePoints3D를 option3D useMemo에 직접 포함하는 방식으로 교체
+- [x] `TelemetryChart` 툴팁에서 두 드라이버 데이터 항상 표시 (ECharts params 의존 → time_ms 이진탐색 독립 조회)
 
 ---
 
@@ -898,6 +906,7 @@ volumes:
 
 ```
 ✅ Step 9  Option A — 랩 데이터 확장 (섹터 타임, 스피드 트랩, 타이어 전략)  커밋: 7140662
+✅ Step 8b — TrackMap UI 고도화 (3D/2D 동시표시, 고도 컬러링, 슬라이더, 블랭크 버그 수정)  커밋: 이번 세션
 🔲 Step 10 Option B — 레이스 결과 화면 (결과 테이블, 포지션 차트, 갭 차트)
 🔲 Step 11 Option C — 트랙 맵 고도화 (서킷 코너 오버레이, 레이스 컨트롤 메시지)
 ```

@@ -79,16 +79,55 @@ export function TelemetryChart({ comparisons, onHover }: Props) {
       borderColor: '#333',
       textStyle: { color: '#ccc', fontSize: 11 },
       formatter: (params: unknown) => {
-        const p = params as Array<{ axisValue: number; seriesName: string; value: [number, number] }>
+        const p = params as Array<{ axisValue: number }>
         if (!p.length) return ''
-        const t = (p[0].axisValue / 1000).toFixed(2)
-        const lines = p
-          .filter(x => x.value?.[1] !== null)
-          .map(x => {
-            const [driver] = x.seriesName.split('-')
-            return `<b style="color:${getDriverColor(comparisons, driver)}">${driver}</b>: ${x.value[1]?.toFixed?.(1) ?? x.value[1]}`
-          })
-        return `<div style="font-size:11px">${t}s<br/>${lines.join('<br/>')}</div>`
+        const hoverMs = p[0].axisValue
+        const t = (hoverMs / 1000).toFixed(2)
+
+        // params 의존 대신 각 드라이버 time_ms에서 직접 가장 가까운 인덱스 탐색
+        const findIdx = (arr: number[], target: number) => {
+          let lo = 0, hi = arr.length - 1
+          while (lo < hi) {
+            const mid = (lo + hi) >> 1
+            if (arr[mid] < target) lo = mid + 1
+            else hi = mid
+          }
+          return lo
+        }
+
+        const METRICS = [
+          { key: 'speed'    as const, label: 'Speed',    unit: 'km/h' },
+          { key: 'throttle' as const, label: 'Throttle', unit: '%'    },
+          { key: 'brake'    as const, label: 'Brake',    unit: ''     },
+          { key: 'gear'     as const, label: 'Gear',     unit: ''     },
+        ]
+
+        // 드라이버별 가장 가까운 값 미리 수집
+        const driverRows = comparisons.map(comp => {
+          const idx = findIdx(comp.data.time_ms, hoverMs)
+          const raw = (key: typeof METRICS[number]['key']) => {
+            const v = (comp.data[key] as (number | boolean | null)[])?.[idx]
+            if (v == null) return null
+            if (v === true) return 1
+            if (v === false) return 0
+            return v as number
+          }
+          return { code: comp.driver_code, color: `#${comp.team_color}`, raw }
+        })
+
+        // 메트릭별 행: "Speed  VER 295.0 km/h  NOR 288.5 km/h"
+        const rows = METRICS.map(({ key, label, unit }) => {
+          const cells = driverRows.map(d => {
+            const v = d.raw(key)
+            const display = v == null ? '—'
+              : key === 'gear' ? String(Math.round(v))
+              : v.toFixed(1)
+            return `<span style="color:${d.color}">${d.code}: <b>${display}</b>${unit ? ' ' + unit : ''}</span>`
+          }).join('&nbsp;&nbsp;')
+          return `<span style="color:#555;font-size:10px">${label}</span>&nbsp;&nbsp;${cells}`
+        }).join('<br/>')
+
+        return `<div style="font-size:11px;line-height:1.7"><b style="color:#aaa">${t}s</b><br/>${rows}</div>`
       },
     },
 
@@ -162,8 +201,4 @@ export function TelemetryChart({ comparisons, onHover }: Props) {
       notMerge
     />
   )
-}
-
-function getDriverColor(comparisons: DriverTelemetry[], code: string): string {
-  return `#${comparisons.find(c => c.driver_code === code)?.team_color ?? 'ffffff'}`
 }
