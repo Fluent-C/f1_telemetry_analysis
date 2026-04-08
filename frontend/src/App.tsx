@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSessions }        from './hooks/useSessions'
 import { useDrivers }         from './hooks/useDrivers'
 import { useLaps, useAllLaps } from './hooks/useLaps'
@@ -59,6 +59,41 @@ export default function App() {
   const currentSession = sessions?.find(s => s.id === sessionId)
   const sessionType    = currentSession?.session_type ?? 'R'
 
+  // 드라이버 정렬: 레이스·스프린트 → 결과 순위순, 그 외 → 최속 랩타임순
+  const sortedDrivers = useMemo(() => {
+    if (!drivers || drivers.length === 0) return drivers
+
+    const isRaceSession = ['R', 'S'].includes(sessionType)
+
+    if (isRaceSession && results && results.length > 0) {
+      // classified_position 기준 (null = DNF → 마지막)
+      const posMap: Record<string, number> = {}
+      results.forEach(r => {
+        posMap[r.driver_code] = r.classified_position ?? 999
+      })
+      return [...drivers].sort(
+        (a, b) => (posMap[a.driver_code] ?? 999) - (posMap[b.driver_code] ?? 999)
+      )
+    }
+
+    if (allLaps && allLaps.length > 0) {
+      // 드라이버별 최속 랩타임 (null 제외)
+      const bestMap: Record<string, number> = {}
+      for (const lap of allLaps) {
+        if (lap.lap_time_ms == null || lap.deleted) continue
+        const prev = bestMap[lap.driver_code]
+        if (prev == null || lap.lap_time_ms < prev) {
+          bestMap[lap.driver_code] = lap.lap_time_ms
+        }
+      }
+      return [...drivers].sort(
+        (a, b) => (bestMap[a.driver_code] ?? Infinity) - (bestMap[b.driver_code] ?? Infinity)
+      )
+    }
+
+    return drivers
+  }, [drivers, sessionType, results, allLaps])
+
   // 세션 바뀌면 드라이버·랩 초기화
   useEffect(() => {
     setDriverA(null); setDriverB(null)
@@ -108,7 +143,7 @@ export default function App() {
             <DriverLapSelector
               label="A"
               sessionId={sessionId}
-              drivers={drivers}
+              drivers={sortedDrivers}
               driverCode={driverA}
               lapNumber={lapA}
               onDriver={handleDriverA}
@@ -117,7 +152,7 @@ export default function App() {
             <DriverLapSelector
               label="B"
               sessionId={sessionId}
-              drivers={drivers}
+              drivers={sortedDrivers}
               driverCode={driverB}
               lapNumber={lapB}
               onDriver={handleDriverB}
