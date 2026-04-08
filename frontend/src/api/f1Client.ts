@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Session, Driver, Lap, TelemetryResponse } from '../types/f1'
+import type { Session, Driver, Lap, TelemetryResponse, SessionResult } from '../types/f1'
 
 const api = axios.create({
   baseURL: 'http://localhost:8000',
@@ -21,6 +21,9 @@ export const fetchAllLaps = (sessionId: number): Promise<Lap[]> =>
   api
     .get<Lap[]>(`/sessions/${sessionId}/laps`)
     .then(r => r.data)
+
+export const fetchResults = (sessionId: number): Promise<SessionResult[]> =>
+  api.get<SessionResult[]>('/results', { params: { session_id: sessionId } }).then(r => r.data)
 
 export const fetchTelemetry = (
   sessionId: number,

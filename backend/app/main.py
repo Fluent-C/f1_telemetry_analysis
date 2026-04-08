@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from .database import engine, AsyncSessionLocal
-from .routers import sessions, drivers, telemetry
+from .routers import sessions, drivers, telemetry, results
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ app.add_middleware(
 app.include_router(sessions.router)
 app.include_router(drivers.router)
 app.include_router(telemetry.router)
+app.include_router(results.router)
 
 
 @app.get('/health', tags=['health'])

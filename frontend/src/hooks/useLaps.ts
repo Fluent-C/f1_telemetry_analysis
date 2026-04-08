@@ -1,11 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchLaps } from '../api/f1Client'
+import { fetchLaps, fetchAllLaps } from '../api/f1Client'
 
 export function useLaps(sessionId: number | null, driverCode: string | null) {
   return useQuery({
     queryKey: ['laps', sessionId, driverCode],
     queryFn:  () => fetchLaps(sessionId!, driverCode!),
     enabled:  sessionId !== null && driverCode !== null,
+  })
+}
+
+export function useAllLaps(sessionId: number | null) {
+  return useQuery({
+    queryKey: ['laps', sessionId, '__all__'],
+    queryFn:  () => fetchAllLaps(sessionId!),
+    enabled:  sessionId !== null,
   })
 }
 

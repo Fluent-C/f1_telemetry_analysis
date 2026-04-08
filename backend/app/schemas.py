@@ -68,6 +68,27 @@ class LapOut(BaseModel):
 
 
 # ──────────────────────────────────────────────
+# Results
+# ──────────────────────────────────────────────
+
+class SessionResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    driver_code:          str
+    classified_position:  Optional[int]
+    grid_position:        Optional[int]
+    points:               Optional[float]
+    q1_ms:                Optional[int]
+    q2_ms:                Optional[int]
+    q3_ms:                Optional[int]
+    status:               Optional[str]
+    # JOIN 필드 (drivers + teams)
+    full_name:            Optional[str] = None
+    team_name:            Optional[str] = None
+    team_color:           Optional[str] = None
+
+
+# ──────────────────────────────────────────────
 # Telemetry
 # ──────────────────────────────────────────────
 

@@ -35,6 +35,7 @@ from fetch_sessions  import fetch_session_meta
 from fetch_telemetry import fetch_drivers, fetch_laps, fetch_telemetry
 from fetch_weather   import fetch_weather, WEATHER_COLUMNS
 from fetch_telemetry import TEL_COLUMNS
+from fetch_results   import fetch_results
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,6 +138,32 @@ def upsert_laps(conn, laps_df: pd.DataFrame) -> None:
     rows = laps_df.astype(object).where(pd.notnull(laps_df), None).to_dict('records')
     with conn.cursor() as cur:
         cur.executemany(sql, rows)
+    conn.commit()
+
+
+def insert_results(conn, session_id: int, season: int, rows: list[dict]) -> None:
+    """session_results 테이블에 ON DUPLICATE KEY UPDATE."""
+    if not rows:
+        return
+    sql = """
+        INSERT INTO session_results
+            (session_id, season, driver_code, classified_position,
+             grid_position, points, q1_ms, q2_ms, q3_ms, status)
+        VALUES
+            (%(session_id)s, %(season)s, %(driver_code)s, %(classified_position)s,
+             %(grid_position)s, %(points)s, %(q1_ms)s, %(q2_ms)s, %(q3_ms)s, %(status)s)
+        ON DUPLICATE KEY UPDATE
+            classified_position = VALUES(classified_position),
+            grid_position       = VALUES(grid_position),
+            points              = VALUES(points),
+            q1_ms               = VALUES(q1_ms),
+            q2_ms               = VALUES(q2_ms),
+            q3_ms               = VALUES(q3_ms),
+            status              = VALUES(status)
+    """
+    enriched = [{**r, 'session_id': session_id, 'season': season} for r in rows]
+    with conn.cursor() as cur:
+        cur.executemany(sql, enriched)
     conn.commit()
 
 
@@ -302,23 +329,28 @@ def process_one_session(args: tuple) -> dict:
         upsert_laps(conn, laps_df)
         logger.info(f"  laps: {len(laps_df)} rows 갱신")
 
+        # ── 5. session_results INSERT (lightweight — laps_only 포함) ──
+        result_rows = fetch_results(ff1_session)
+        insert_results(conn, session_db_id, season, result_rows)
+        logger.info(f"  results: {len(result_rows)} rows 갱신")
+
         if laps_only:
             # telemetry/weather/etl_progress 갱신 없이 완료
             result.update({'status': 'done'})
             logger.info(f"[{season} R{round_num} {session_type}] laps-only 완료")
             return result
 
-        # ── 5. telemetry LOAD DATA INFILE ────────────────
+        # ── 6. telemetry LOAD DATA INFILE ────────────────
         tel_df  = fetch_telemetry(ff1_session, session_db_id, season)
         tel_rows = load_df_infile(conn, tel_df, 'telemetry', TEL_COLUMNS)
         logger.info(f"  telemetry: {tel_rows:,} rows 적재")
 
-        # ── 6. weather LOAD DATA INFILE ──────────────────
+        # ── 7. weather LOAD DATA INFILE ──────────────────
         wx_df   = fetch_weather(ff1_session, session_db_id, season)
         wx_rows = load_df_infile(conn, wx_df, 'weather', WEATHER_COLUMNS)
         logger.info(f"  weather: {wx_rows} rows 적재")
 
-        # ── 7. 완료 마킹 ─────────────────────────────────
+        # ── 8. 완료 마킹 ─────────────────────────────────
         mark_done(conn, season, round_num, session_type, tel_rows, wx_rows)
         result.update({'status': 'done', 'tel_rows': tel_rows, 'wx_rows': wx_rows})
         logger.info(

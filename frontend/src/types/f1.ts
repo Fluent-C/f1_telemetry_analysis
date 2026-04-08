@@ -40,6 +40,20 @@ export interface Lap {
   deleted:          boolean
 }
 
+export interface SessionResult {
+  driver_code:          string
+  classified_position:  number | null
+  grid_position:        number | null
+  points:               number | null
+  q1_ms:                number | null
+  q2_ms:                number | null
+  q3_ms:                number | null
+  status:               string | null
+  full_name:            string | null
+  team_name:            string | null
+  team_color:           string | null
+}
+
 export interface TelemetryData {
   time_ms:  number[]
   speed:    (number | null)[]
