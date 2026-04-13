@@ -3,12 +3,12 @@ import ReactECharts from 'echarts-for-react'
 import type { Lap } from '../types/f1'
 
 interface Props {
-  allLaps: Lap[]
-  /** 강조 드라이버 코드 목록 (팀 컬러 맵) */
-  driverColors: Record<string, string>  // { VER: 'FF8000', ... }
+  allLaps:       Lap[]
+  driverColors:  Record<string, string>  // { VER: 'FF8000', ... }
+  dashedDrivers: Set<string>             // 이 코드의 드라이버 라인을 점선으로 표시
 }
 
-export function PositionChart({ allLaps, driverColors }: Props) {
+export function PositionChart({ allLaps, driverColors, dashedDrivers }: Props) {
   const option = useMemo(() => {
     if (allLaps.length === 0) return {}
 
@@ -28,13 +28,19 @@ export function PositionChart({ allLaps, driverColors }: Props) {
 
     const series = drivers.map(code => {
       const laps = byDriver[code].sort((a, b) => a.lap_number! - b.lap_number!)
-      const color = driverColors[code] ? `#${driverColors[code]}` : '#888'
+      const color   = driverColors[code] ? `#${driverColors[code]}` : '#888'
+      const isDashed = dashedDrivers.has(code)
       return {
         name: code,
         type: 'line',
         data: laps.map(l => [l.lap_number, l.position]),
         symbol: 'none',
-        lineStyle: { color, width: code in driverColors ? 2 : 1, opacity: code in driverColors ? 1 : 0.3 },
+        lineStyle: {
+          color,
+          width:   code in driverColors ? 2 : 1,
+          opacity: code in driverColors ? 1 : 0.3,
+          type:    isDashed ? 'dashed' : 'solid',
+        },
         itemStyle: { color },
         emphasis: { disabled: true },
         animation: false,

@@ -3,11 +3,12 @@ import ReactECharts from 'echarts-for-react'
 import type { Lap } from '../types/f1'
 
 interface Props {
-  allLaps: Lap[]
-  driverColors: Record<string, string>  // { VER: 'FF8000', ... }
+  allLaps:       Lap[]
+  driverColors:  Record<string, string>  // { VER: 'FF8000', ... }
+  dashedDrivers: Set<string>
 }
 
-export function GapChart({ allLaps, driverColors }: Props) {
+export function GapChart({ allLaps, driverColors, dashedDrivers }: Props) {
   const option = useMemo(() => {
     if (allLaps.length === 0) return {}
 
@@ -67,7 +68,12 @@ export function GapChart({ allLaps, driverColors }: Props) {
         type: 'line',
         data,
         symbol: 'none',
-        lineStyle: { color, width: code in driverColors ? 2 : 1, opacity: code in driverColors ? 1 : 0.3 },
+        lineStyle: {
+          color,
+          width:   code in driverColors ? 2 : 1,
+          opacity: code in driverColors ? 1 : 0.3,
+          type:    dashedDrivers.has(code) ? 'dashed' : 'solid',
+        },
         itemStyle: { color },
         emphasis: { disabled: true },
         animation: false,

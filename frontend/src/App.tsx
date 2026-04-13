@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { lightenHex } from './utils/colorUtils'
 import { useSessions }        from './hooks/useSessions'
 import { useDrivers }         from './hooks/useDrivers'
 import { useLaps, useAllLaps } from './hooks/useLaps'
@@ -52,8 +53,28 @@ export default function App() {
   const driverColors: Record<string, string> = {}
   drivers?.forEach(d => { driverColors[d.driver_code] = d.team_color })
 
-  const colorA = driverColors[driverA ?? ''] ?? 'FFFFFF'
-  const colorB = driverColors[driverB ?? ''] ?? 'FFFFFF'
+  // 동팀 여부 판단
+  const sameTeam = Boolean(
+    driverA && driverB &&
+    drivers?.find(d => d.driver_code === driverA)?.team_name ===
+    drivers?.find(d => d.driver_code === driverB)?.team_name
+  )
+
+  // Driver B 색상: 동팀이면 밝게, 다른 팀이면 원래 색상
+  const rawColorA = driverColors[driverA ?? ''] ?? 'FFFFFF'
+  const rawColorB = driverColors[driverB ?? ''] ?? 'FFFFFF'
+  const colorA    = rawColorA
+  const colorB    = sameTeam ? lightenHex(rawColorB, 0.45) : rawColorB
+
+  // Position/GapChart용 조정된 컬러 맵 (Driver B만 덮어쓰기)
+  const adjustedColors: Record<string, string> = { ...driverColors }
+  if (sameTeam && driverB) adjustedColors[driverB] = colorB
+
+  // dashedDrivers Set (Position/GapChart에서 점선 처리할 드라이버)
+  const dashedDrivers = useMemo(
+    () => (sameTeam && driverB ? new Set([driverB]) : new Set<string>()),
+    [sameTeam, driverB]
+  )
 
   // 현재 세션 타입
   const currentSession = sessions?.find(s => s.id === sessionId)
@@ -213,6 +234,7 @@ export default function App() {
                 <TrackMap
                   comparisons={telemetry.comparisons}
                   hoverTimeMs={hoverTimeMs}
+                  isDashedB={sameTeam}
                 />
                 <SectorDeltaChart
                   lapA={selectedLapA}
@@ -224,6 +246,7 @@ export default function App() {
                 />
                 <TelemetryChart
                   comparisons={telemetry.comparisons}
+                  isDashedB={sameTeam}
                   onHover={setHoverTimeMs}
                 />
               </div>
@@ -264,7 +287,8 @@ export default function App() {
                 </h3>
                 <PositionChart
                   allLaps={allLaps ?? []}
-                  driverColors={driverColors}
+                  driverColors={adjustedColors}
+                  dashedDrivers={dashedDrivers}
                 />
               </div>
             )}
@@ -277,7 +301,8 @@ export default function App() {
                 </h3>
                 <GapChart
                   allLaps={allLaps ?? []}
-                  driverColors={driverColors}
+                  driverColors={adjustedColors}
+                  dashedDrivers={dashedDrivers}
                 />
               </div>
             )}

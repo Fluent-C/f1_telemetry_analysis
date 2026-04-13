@@ -6,6 +6,7 @@ import type { DriverTelemetry } from '../types/f1'
 interface Props {
   comparisons: DriverTelemetry[]
   hoverTimeMs: number | null
+  isDashedB?:  boolean
 }
 
 // 고도(elevation) 컬러 팔레트 — 낮음(파랑) → 중간(초록) → 높음(빨강)
@@ -13,7 +14,7 @@ const ELEV_COLORS = [
   '#2b83ba', '#abdda4', '#ffffbf', '#fdae61', '#d7191c',
 ]
 
-export function TrackMap({ comparisons, hoverTimeMs }: Props) {
+export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false }: Props) {
   const [zScale,   setZScale]   = useState(3.0)
   const [alpha,    setAlpha]    = useState(45)   // 부감 각도 (0=수평, 90=정면부감)
   const [beta,     setBeta]     = useState(15)   // 수평 회전
@@ -66,10 +67,10 @@ export function TrackMap({ comparisons, hoverTimeMs }: Props) {
 
   // ── 드라이버 현재 위치 (hover 또는 중간 지점) ────────
   const activePoints3D = useMemo(() => {
-    const res: { value: [number, number, number]; itemStyle: { color: string } }[] = []
-    for (const comp of comparisons) {
+    const res: { value: [number, number, number]; itemStyle: { color: string }; symbol?: string }[] = []
+    comparisons.forEach((comp, driverIdx) => {
       const d = comp.data
-      if (!d.x || !d.y || d.x.length === 0) continue
+      if (!d.x || !d.y || d.x.length === 0) return
       const base = hoverTimeMs !== null
         ? findClosest(d.time_ms, hoverTimeMs)
         : Math.floor(d.time_ms.length / 2)
@@ -82,16 +83,20 @@ export function TrackMap({ comparisons, hoverTimeMs }: Props) {
       }
       const x = d.x[idx]; const y = d.y[idx]; const z = d.z?.[idx] ?? 0
       if (x != null && y != null)
-        res.push({ value: [x, y, z * zScale], itemStyle: { color: `#${comp.team_color}` } })
-    }
+        res.push({
+          value: [x, y, z * zScale],
+          itemStyle: { color: `#${comp.team_color}` },
+          ...(isDashedB && driverIdx === 1 ? { symbol: 'diamond' } : {}),
+        })
+    })
     return res
-  }, [comparisons, hoverTimeMs, zScale])
+  }, [comparisons, hoverTimeMs, zScale, isDashedB])
 
   const activePoints2D = useMemo(() => {
-    const res: { value: [number, number]; name: string; itemStyle: { color: string } }[] = []
-    for (const comp of comparisons) {
+    const res: { value: [number, number]; name: string; itemStyle: { color: string }; symbol?: string }[] = []
+    comparisons.forEach((comp, driverIdx) => {
       const d = comp.data
-      if (!d.x || !d.y || d.x.length === 0) continue
+      if (!d.x || !d.y || d.x.length === 0) return
       const base = hoverTimeMs !== null
         ? findClosest(d.time_ms, hoverTimeMs)
         : Math.floor(d.time_ms.length / 2)
@@ -104,10 +109,15 @@ export function TrackMap({ comparisons, hoverTimeMs }: Props) {
       }
       const x = d.x[idx]; const y = d.y[idx]
       if (x != null && y != null)
-        res.push({ value: [x, y], name: comp.driver_code, itemStyle: { color: `#${comp.team_color}` } })
-    }
+        res.push({
+          value: [x, y],
+          name: comp.driver_code,
+          itemStyle: { color: `#${comp.team_color}` },
+          ...(isDashedB && driverIdx === 1 ? { symbol: 'diamond' } : {}),
+        })
+    })
     return res
-  }, [comparisons, hoverTimeMs])
+  }, [comparisons, hoverTimeMs, isDashedB])
 
   // ── 3D 옵션 ──────────────────────────────────────
   const option3D = useMemo(() => {

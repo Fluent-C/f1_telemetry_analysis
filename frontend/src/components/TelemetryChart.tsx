@@ -15,6 +15,7 @@ import type { DriverTelemetry } from '../types/f1'
 
 interface Props {
   comparisons: DriverTelemetry[]
+  isDashedB?:  boolean
   onHover?: (timeMs: number | null) => void
 }
 
@@ -32,34 +33,39 @@ function buildSeries(
   comparisons: DriverTelemetry[],
   panelIndex: number,
   key: PanelKey,
+  isDashedB: boolean,
 ) {
   const isBrake = key === 'brake'
-  return comparisons.map(comp => ({
-    name:        `${comp.driver_code}-${key}`,
-    type:        'line' as const,
-    xAxisIndex:  panelIndex,
-    yAxisIndex:  panelIndex,
-    symbol:      'none',
-    ...(isBrake ? {
-      step:      'end' as const,
-      lineStyle: { width: 1, color: `#${comp.team_color}` },
-      areaStyle: { color: `#${comp.team_color}`, opacity: 0.35 },
-    } : {
-      lineStyle: { width: 1.5, color: `#${comp.team_color}` },
-    }),
-    itemStyle:   { color: `#${comp.team_color}` },
-    // brake는 boolean → 0/1로 변환
-    data: comp.data.time_ms.map((t, i) => {
-      const raw = (comp.data[key] as (number | boolean | null)[])[i]
-      const val = raw === true ? 1 : raw === false ? 0 : (raw ?? null)
-      return [t, val]
-    }),
-    large:      true,
-    largeThreshold: 500,
-  }))
+  return comparisons.map((comp, driverIdx) => {
+    const color     = `#${comp.team_color}`
+    const lineType  = ((driverIdx === 1 && isDashedB) ? 'dashed' : 'solid') as 'dashed' | 'solid'
+    return {
+      name:        `${comp.driver_code}-${key}`,
+      type:        'line' as const,
+      xAxisIndex:  panelIndex,
+      yAxisIndex:  panelIndex,
+      symbol:      'none',
+      ...(isBrake ? {
+        step:      'end' as const,
+        lineStyle: { width: 1, color, type: lineType },
+        areaStyle: { color, opacity: 0.35 },
+      } : {
+        lineStyle: { width: 1.5, color, type: lineType },
+      }),
+      itemStyle:   { color },
+      // brake는 boolean → 0/1로 변환
+      data: comp.data.time_ms.map((t, i) => {
+        const raw = (comp.data[key] as (number | boolean | null)[])[i]
+        const val = raw === true ? 1 : raw === false ? 0 : (raw ?? null)
+        return [t, val]
+      }),
+      large:      true,
+      largeThreshold: 500,
+    }
+  })
 }
 
-export function TelemetryChart({ comparisons, onHover }: Props) {
+export function TelemetryChart({ comparisons, isDashedB = false, onHover }: Props) {
   if (comparisons.length === 0) return null
 
   const option: EChartsOption = {
@@ -173,7 +179,7 @@ export function TelemetryChart({ comparisons, onHover }: Props) {
     })),
 
     // ── 시리즈 ───────────────────────────────────────────
-    series: PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key)),
+    series: PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key, isDashedB)),
 
     dataZoom: [
       { type: 'inside', xAxisIndex: [0, 1, 2, 3], filterMode: 'none' },
