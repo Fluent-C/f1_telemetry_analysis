@@ -1122,6 +1122,113 @@ python load_data.py --season 2025 --all-rounds --workers 16 --force
 
 ---
 
+### Step 10b: UX — 동팀 드라이버 시각 구분 (Option C 색상+스타일)
+
+**목표**: 같은 팀 두 드라이버를 비교할 때, 동일 팀 컬러로 인해 라인이 구분되지 않는 문제 해결.
+Driver A = 원래 팀 컬러 + 실선 / Driver B = 밝기 조정 팀 컬러 + 점선.
+
+#### 구현 방법
+
+**① `frontend/src/utils/colorUtils.ts` 신설**
+
+```typescript
+/**
+ * hex 6자리 색상(# 없음)을 amount(0~1)만큼 흰색 방향으로 밝게 조정.
+ * RGB 선형 보간: result = original + (255 - original) * amount
+ */
+export function lightenHex(hex: string, amount = 0.45): string {
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const lr = Math.min(255, Math.round(r + (255 - r) * amount))
+  const lg = Math.min(255, Math.round(g + (255 - g) * amount))
+  const lb = Math.min(255, Math.round(b + (255 - b) * amount))
+  return [lr, lg, lb].map(v => v.toString(16).padStart(2, '0')).join('')
+}
+```
+
+**② `frontend/src/App.tsx` 수정**
+
+```tsx
+import { lightenHex } from './utils/colorUtils'
+
+// 동팀 여부 판단
+const sameTeam = Boolean(
+  driverA && driverB &&
+  drivers?.find(d => d.driver_code === driverA)?.team_name ===
+  drivers?.find(d => d.driver_code === driverB)?.team_name
+)
+
+// Driver B 색상 조정
+const rawColorA = driverColors[driverA ?? ''] ?? 'FFFFFF'
+const rawColorB = driverColors[driverB ?? ''] ?? 'FFFFFF'
+const colorA    = rawColorA
+const colorB    = sameTeam ? lightenHex(rawColorB, 0.45) : rawColorB
+
+// driverColors 오버라이드 맵 (Position/GapChart용)
+const adjustedColors: Record<string, string> = { ...driverColors }
+if (sameTeam && driverB) adjustedColors[driverB] = colorB
+```
+
+각 차트에 전달:
+```tsx
+<TelemetryChart  comparisons={...} isDashedB={sameTeam} onHover={...} />
+<PositionChart   allLaps={...} driverColors={adjustedColors}
+                 dashedDrivers={sameTeam && driverB ? new Set([driverB]) : new Set()} />
+<GapChart        allLaps={...} driverColors={adjustedColors}
+                 dashedDrivers={sameTeam && driverB ? new Set([driverB]) : new Set()} />
+<SectorDeltaChart ... colorA={`#${colorA}`} colorB={`#${colorB}`} />
+<TrackMap        comparisons={...} isDashedB={sameTeam} hoverTimeMs={...} />
+```
+
+**③ `frontend/src/components/TelemetryChart.tsx` 수정**
+
+```tsx
+interface Props {
+  comparisons: DriverTelemetry[]
+  isDashedB?:  boolean            // 추가
+  onHover:     (ms: number | null) => void
+}
+
+// series 생성 시 index 1인 경우 dashed 적용
+const lineType = (i: number) => (i === 1 && isDashedB) ? 'dashed' : 'solid'
+// 각 series에: lineStyle: { ..., type: lineType(i) }
+```
+
+**④ `frontend/src/components/PositionChart.tsx` + `GapChart.tsx` 수정**
+
+```tsx
+interface Props {
+  allLaps:       Lap[]
+  driverColors:  Record<string, string>
+  dashedDrivers: Set<string>          // 추가
+}
+
+// series 생성 시 dashedDrivers에 포함된 code면 dashed
+lineStyle: { color, width: ..., type: dashedDrivers.has(code) ? 'dashed' : 'solid' }
+```
+
+**⑤ `frontend/src/components/TrackMap.tsx` 수정**
+
+Driver B 마커 심볼을 `'circle'` → `'diamond'`으로 변경하여 형태로도 구분:
+```tsx
+interface Props {
+  comparisons:  DriverTelemetry[]
+  hoverTimeMs:  number | null
+  isDashedB?:   boolean           // 추가
+}
+
+// activePoints3D/2D 생성 시 index 1이고 isDashedB면:
+symbol: isDashedB && i === 1 ? 'diamond' : 'circle'
+```
+
+#### 완료 기준
+- 같은 팀 두 드라이버 선택 시: Driver B 라인이 점선 + 밝은 색으로 표시됨
+- 다른 팀 두 드라이버 선택 시: 기존과 동일하게 각자 팀 컬러 실선 표시됨
+- TelemetryChart, PositionChart, GapChart, TrackMap 모두 적용됨
+
+---
+
 ### Step 10: Option B — 레이스 결과 화면
 
 **목표:** 별도의 "결과" 탭을 신설하여 레이스 최종 결과, 랩별 포지션 변화, 리더 대비 갭 차트를 제공한다.
