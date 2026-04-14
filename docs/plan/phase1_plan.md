@@ -909,7 +909,7 @@ volumes:
 ✅ Step 8b — TrackMap UI 고도화 (3D/2D 동시표시, 고도 컬러링, 슬라이더, 블랭크 버그 수정)  커밋: de40d69
 ✅ Step 10 Option B — 레이스 결과 화면 (결과 테이블, 포지션 차트, 갭 차트)  커밋: a461828
 ✅ Step 10b UX — 동팀 드라이버 시각 구분 (lightenHex + isDashedB/dashedDrivers)  커밋: 8ffbb4b
-🔲 Step 11 Option C — 트랙 맵 고도화 (서킷 코너 오버레이, 레이스 컨트롤 메시지)
+✅ Step 11 Option C — 트랙 맵 고도화 (서킷 코너 오버레이, 레이스 컨트롤 메시지)  커밋: ae9bc86
 ```
 
 ### Step 9 완료 내역 (2026-04-05, 커밋 `7140662`)
