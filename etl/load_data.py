@@ -31,11 +31,13 @@ import fastf1
 import pandas as pd
 
 from config import FASTF1_CACHE_DIR, ETL_WORKERS, ETL_MAX_RETRIES, get_db_connection
-from fetch_sessions  import fetch_session_meta
-from fetch_telemetry import fetch_drivers, fetch_laps, fetch_telemetry
-from fetch_weather   import fetch_weather, WEATHER_COLUMNS
-from fetch_telemetry import TEL_COLUMNS
-from fetch_results   import fetch_results
+from fetch_sessions      import fetch_session_meta
+from fetch_telemetry     import fetch_drivers, fetch_laps, fetch_telemetry
+from fetch_weather       import fetch_weather, WEATHER_COLUMNS
+from fetch_telemetry     import TEL_COLUMNS
+from fetch_results       import fetch_results
+from fetch_circuit_info  import fetch_circuit_info
+from fetch_race_control  import fetch_race_control
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,6 +164,45 @@ def insert_results(conn, session_id: int, season: int, rows: list[dict]) -> None
             status              = VALUES(status)
     """
     enriched = [{**r, 'session_id': session_id, 'season': season} for r in rows]
+    with conn.cursor() as cur:
+        cur.executemany(sql, enriched)
+    conn.commit()
+
+
+def insert_circuit_info(conn, data: dict) -> None:
+    """circuits 테이블에 UPSERT (ON DUPLICATE KEY UPDATE)."""
+    import json
+    sql = """
+        INSERT INTO circuits (circuit_key, rotation, corners, marshal_sectors)
+        VALUES (%(circuit_key)s, %(rotation)s, %(corners)s, %(marshal_sectors)s)
+        ON DUPLICATE KEY UPDATE
+            rotation        = VALUES(rotation),
+            corners         = VALUES(corners),
+            marshal_sectors = VALUES(marshal_sectors)
+    """
+    row = {
+        'circuit_key':     data['circuit_key'],
+        'rotation':        data['rotation'],
+        'corners':         json.dumps(data['corners'],         ensure_ascii=False),
+        'marshal_sectors': json.dumps(data['marshal_sectors'], ensure_ascii=False),
+    }
+    with conn.cursor() as cur:
+        cur.execute(sql, row)
+    conn.commit()
+
+
+def insert_race_control(conn, session_id: int, rows: list[dict]) -> None:
+    """race_control_messages 테이블에 INSERT IGNORE."""
+    if not rows:
+        return
+    sql = """
+        INSERT IGNORE INTO race_control_messages
+            (session_id, time_ms, lap_number, category, message, flag, driver_code)
+        VALUES
+            (%(session_id)s, %(time_ms)s, %(lap_number)s, %(category)s,
+             %(message)s, %(flag)s, %(driver_code)s)
+    """
+    enriched = [{**r, 'session_id': session_id} for r in rows]
     with conn.cursor() as cur:
         cur.executemany(sql, enriched)
     conn.commit()
@@ -316,9 +357,10 @@ def process_one_session(args: tuple) -> dict:
         # ── 2. FastF1 세션 로드 ──────────────────────────
         ff1_session = fastf1.get_session(season, round_num, session_type)
         if laps_only:
-            ff1_session.load(laps=True, telemetry=False, weather=False)
+            # messages=True: race_control/circuit 적재도 포함 (경량 데이터)
+            ff1_session.load(laps=True, telemetry=False, weather=False, messages=True)
         else:
-            ff1_session.load(telemetry=True, weather=True)
+            ff1_session.load(telemetry=True, weather=True, messages=True)
 
         # ── 3. drivers INSERT IGNORE ─────────────────────
         drivers = fetch_drivers(ff1_session, session_db_id)
@@ -334,23 +376,34 @@ def process_one_session(args: tuple) -> dict:
         insert_results(conn, session_db_id, season, result_rows)
         logger.info(f"  results: {len(result_rows)} rows 갱신")
 
+        # ── 6. circuits UPSERT (laps_only 포함 — 경량 데이터) ──
+        circuit_data = fetch_circuit_info(ff1_session)
+        if circuit_data:
+            insert_circuit_info(conn, circuit_data)
+            logger.info(f"  circuit: {circuit_data['circuit_key']} ({len(circuit_data['corners'])} corners)")
+
+        # ── 7. race_control_messages INSERT IGNORE ─────────
+        rc_rows = fetch_race_control(ff1_session)
+        insert_race_control(conn, session_db_id, rc_rows)
+        logger.info(f"  race_control: {len(rc_rows)} msgs")
+
         if laps_only:
             # telemetry/weather/etl_progress 갱신 없이 완료
             result.update({'status': 'done'})
             logger.info(f"[{season} R{round_num} {session_type}] laps-only 완료")
             return result
 
-        # ── 6. telemetry LOAD DATA INFILE ────────────────
+        # ── 9. telemetry LOAD DATA INFILE ────────────────
         tel_df  = fetch_telemetry(ff1_session, session_db_id, season)
         tel_rows = load_df_infile(conn, tel_df, 'telemetry', TEL_COLUMNS)
         logger.info(f"  telemetry: {tel_rows:,} rows 적재")
 
-        # ── 7. weather LOAD DATA INFILE ──────────────────
+        # ── 10. weather LOAD DATA INFILE ─────────────────
         wx_df   = fetch_weather(ff1_session, session_db_id, season)
         wx_rows = load_df_infile(conn, wx_df, 'weather', WEATHER_COLUMNS)
         logger.info(f"  weather: {wx_rows} rows 적재")
 
-        # ── 8. 완료 마킹 ─────────────────────────────────
+        # ── 11. 완료 마킹 ────────────────────────────────
         mark_done(conn, season, round_num, session_type, tel_rows, wx_rows)
         result.update({'status': 'done', 'tel_rows': tel_rows, 'wx_rows': wx_rows})
         logger.info(

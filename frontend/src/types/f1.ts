@@ -40,6 +40,31 @@ export interface Lap {
   deleted:          boolean
 }
 
+export interface CircuitCorner {
+  number:   number
+  letter:   string
+  x:        number
+  y:        number
+  angle:    number
+  distance: number
+}
+
+export interface CircuitInfo {
+  circuit_key:     string
+  rotation:        number
+  corners:         CircuitCorner[]
+  marshal_sectors: { number: number; x: number; y: number }[]
+}
+
+export interface RaceControlMessage {
+  time_ms:     number | null
+  lap_number:  number | null
+  category:    string
+  message:     string
+  flag:        string | null
+  driver_code: string | null
+}
+
 export interface SessionResult {
   driver_code:          string
   classified_position:  number | null

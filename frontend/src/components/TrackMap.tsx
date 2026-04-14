@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import 'echarts-gl'
-import type { DriverTelemetry } from '../types/f1'
+import type { DriverTelemetry, CircuitInfo } from '../types/f1'
 
 interface Props {
   comparisons: DriverTelemetry[]
   hoverTimeMs: number | null
   isDashedB?:  boolean
+  circuitInfo?: CircuitInfo | null   // 코너 오버레이용
 }
 
 // 고도(elevation) 컬러 팔레트 — 낮음(파랑) → 중간(초록) → 높음(빨강)
@@ -14,7 +15,7 @@ const ELEV_COLORS = [
   '#2b83ba', '#abdda4', '#ffffbf', '#fdae61', '#d7191c',
 ]
 
-export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false }: Props) {
+export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitInfo }: Props) {
   const [zScale,   setZScale]   = useState(3.0)
   const [alpha,    setAlpha]    = useState(45)   // 부감 각도 (0=수평, 90=정면부감)
   const [beta,     setBeta]     = useState(15)   // 수평 회전
@@ -174,6 +175,15 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false }: Props)
     }
   }, [trackScatter3D, activePoints3D, bounds, minZ, maxZ, alpha, beta, distance])
 
+  // ── 코너 레이블 데이터 ────────────────────────────────
+  const cornerPoints = useMemo(() => {
+    if (!circuitInfo?.corners?.length) return []
+    return circuitInfo.corners.map(c => ({
+      value: [c.x, c.y],
+      name:  `T${c.number}${c.letter}`,
+    }))
+  }, [circuitInfo])
+
   // ── 2D 옵션 ──────────────────────────────────────────
   const option2D = useMemo(() => {
     if (trackLine2D.length === 0) return {}
@@ -209,9 +219,25 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false }: Props)
           },
           animation: false,
         },
+        // 코너 번호 오버레이 (circuitInfo 있을 때만)
+        ...(cornerPoints.length > 0 ? [{
+          type: 'scatter',
+          data: cornerPoints,
+          symbolSize: 0,          // 마커 숨김, 레이블만 표시
+          label: {
+            show: true,
+            formatter: (p: any) => p.name,
+            color: '#888',
+            fontSize: 9,
+            textShadowColor: '#000',
+            textShadowBlur: 2,
+          },
+          itemStyle: { opacity: 0 },
+          animation: false,
+        }] : []),
       ],
     }
-  }, [trackLine2D, activePoints2D, bounds])
+  }, [trackLine2D, activePoints2D, bounds, cornerPoints])
 
   if (comparisons.length === 0) return null
 

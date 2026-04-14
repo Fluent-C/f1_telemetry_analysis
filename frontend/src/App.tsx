@@ -5,6 +5,8 @@ import { useDrivers }         from './hooks/useDrivers'
 import { useLaps, useAllLaps } from './hooks/useLaps'
 import { useTelemetry }       from './hooks/useTelemetry'
 import { useResults }         from './hooks/useResults'
+import { useCircuit }         from './hooks/useCircuit'
+import { useRaceControl }     from './hooks/useRaceControl'
 import { SessionSelector }    from './components/SessionSelector'
 import { DriverLapSelector }  from './components/DriverLapSelector'
 import { TelemetryChart }     from './components/TelemetryChart'
@@ -14,6 +16,7 @@ import { TyreStrategyChart }  from './components/TyreStrategyChart'
 import { ResultsTable }       from './components/ResultsTable'
 import { PositionChart }      from './components/PositionChart'
 import { GapChart }           from './components/GapChart'
+import { RaceControlTimeline } from './components/RaceControlTimeline'
 
 const CURRENT_SEASON = 2025
 
@@ -79,6 +82,10 @@ export default function App() {
   // 현재 세션 타입
   const currentSession = sessions?.find(s => s.id === sessionId)
   const sessionType    = currentSession?.session_type ?? 'R'
+
+  // Step 11: 서킷 정보 + 레이스 컨트롤
+  const { data: circuitInfo }          = useCircuit(currentSession?.circuit_key ?? null)
+  const { data: raceControlMsgs = [] } = useRaceControl(sessionId)
 
   // 드라이버 정렬: 레이스·스프린트 → 결과 순위순, 그 외 → 최속 랩타임순
   const sortedDrivers = useMemo(() => {
@@ -235,7 +242,14 @@ export default function App() {
                   comparisons={telemetry.comparisons}
                   hoverTimeMs={hoverTimeMs}
                   isDashedB={sameTeam}
+                  circuitInfo={circuitInfo}
                 />
+                {raceControlMsgs.length > 0 && (
+                  <RaceControlTimeline
+                    messages={raceControlMsgs}
+                    totalLaps={allLaps ? Math.max(...allLaps.map(l => l.lap_number ?? 0)) : 60}
+                  />
+                )}
                 <SectorDeltaChart
                   lapA={selectedLapA}
                   lapB={selectedLapB}
