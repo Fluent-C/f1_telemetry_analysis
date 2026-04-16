@@ -109,16 +109,16 @@ Phase 1.75 진행 중 — 배포 전 분석 고도화.
 PDF 분석 보고서(`docs/reference/F1 텔레메트리 서비스 분석 및 전략 수립.pdf`) 기반 경쟁 차별화 기능 확보.
 이미 적재된 데이터(telemetry.drs, weather, race_control_messages, X/Y 좌표 등)를 UI로 활용.
 
-**C항목 (프론트엔드 시각화, 즉시 가능):**
-- C-1: DRS 구간 하이라이트 (TelemetryChart 배경 초록 밴드)
-- C-2: 날씨 정보 헤더 표시 (기온/노면온도/습도)
-- C-4: SC/VSC 밴드 텔레메트리 오버레이 (노란 반투명 밴드)
+**C항목 (프론트엔드 시각화):**
+- ✅ C-1: DRS 구간 하이라이트 (커밋: `eac9289`)
+- ✅ C-2: 날씨 정보 헤더 표시 (커밋: `6a2ab31`)
+- ✅ C-4: SC/VSC 밴드 텔레메트리 오버레이 (커밋: `eac9289`)
 
 **D항목 (분석 모델, 수학적 검증 필요):**
-- D-2: DRS 델타 팀별 비교
-- D-4: 트레일 브레이킹 구간 표시
-- D-3: 횡가속도(Lateral G) 히트맵
-- D-1: 연료 보정 페이스 곡선
+- 🔲 D-2: DRS 델타 팀별 비교
+- 🔲 D-4: 트레일 브레이킹 구간 표시
+- 🔲 D-3: 횡가속도(Lateral G) 히트맵
+- 🔲 D-1: 연료 보정 페이스 곡선
 
 ### Step 11 완료 내역 (2026-04-14)
 
@@ -274,7 +274,7 @@ f1_telemetry_analysis/
         ├── api/f1Client.ts # fetchSessions, fetchDrivers, fetchLaps, fetchAllLaps, fetchTelemetry,
         │                   # fetchResults, fetchCircuit, fetchRaceControl
         ├── hooks/           # useSessions, useDrivers, useLaps, useAllLaps, useTelemetry,
-        │                   # useResults, useCircuit, useRaceControl
+        │                   # useResults, useCircuit, useRaceControl, useWeather
         ├── utils/
         │   └── colorUtils.ts       # lightenHex() — 동팀 드라이버 색상 밝기 조정 (Step 10b)
         ├── components/
@@ -307,6 +307,7 @@ f1_telemetry_analysis/
 | GET | `/results?session_id=5` | 세션 공식 결과 (팀컬러 JOIN, DNF 후순위 정렬) |
 | GET | `/circuits/{circuit_key}` | 서킷 코너·마샬섹터 JSON |
 | GET | `/race-control?session_id=5` | 레이스 컨트롤 메시지 (time_ms 오름차순) |
+| GET | `/sessions/{id}/weather` | 세션 평균 날씨 요약 (기온/노면온도/습도/풍속/강우) |
 
 `/sessions/{id}/laps` 응답 필드 (Step 9 이후):
 `driver_code, lap_number, lap_time_ms, sector1/2/3_ms, speed_i1/i2/fl/st, compound, tyre_life, fresh_tyre, stint, pit_in/out_ms, position, is_personal_best, deleted`
@@ -496,6 +497,7 @@ ETL_MAX_RETRIES=3
 | `src/hooks/useResults.ts` | **Step 10** useQuery: GET /results |
 | `src/hooks/useCircuit.ts` | **Step 11** useQuery: GET /circuits/{circuit_key} (staleTime: Infinity) |
 | `src/hooks/useRaceControl.ts` | **Step 11** useQuery: GET /race-control |
+| `src/hooks/useWeather.ts` | **C-2** useQuery: GET /sessions/{id}/weather |
 | `src/utils/colorUtils.ts` | **Step 10b** `lightenHex()` — 동팀 드라이버 Driver B 색상 밝기 조정 유틸 |
 | `src/components/SessionSelector.tsx` | 라운드별 optgroup 드롭다운 |
 | `src/components/DriverLapSelector.tsx` | 드라이버·랩 선택, 최속랩 자동선택, 팀컬러 뱃지 |

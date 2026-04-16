@@ -12,9 +12,9 @@
 
 | # | 기능 | 데이터 소스 | 구현 범위 |
 |---|------|-----------|----------|
-| C-1 | DRS 구간 하이라이트 | `telemetry.drs` (0/1/2) | TelemetryChart 배경에 DRS=2 구간 초록 밴드 |
-| C-2 | 날씨 정보 헤더 표시 | `weather` 테이블 (TrackTemp, AirTemp, Humidity, Rainfall) | 세션 헤더에 기상 요약 표시, 백엔드 API 추가 |
-| C-4 | SC/VSC 밴드 텔레메트리 오버레이 | `race_control_messages.flag` | TelemetryChart 배경에 SC/VSC 구간 반투명 노란 밴드 |
+| C-1 | ✅ DRS 구간 하이라이트 | `telemetry.drs` (0/1/2) | TelemetryChart 배경에 DRS=2 구간 초록 밴드 — `eac9289` |
+| C-2 | ✅ 날씨 정보 헤더 표시 | `weather` 테이블 | 세션 헤더에 기상 요약 표시 + GET /sessions/{id}/weather — `6a2ab31` |
+| C-4 | ✅ SC/VSC 밴드 텔레메트리 오버레이 | `race_control_messages.flag` | TelemetryChart 배경에 SC/VSC 구간 반투명 노란 밴드 — `eac9289` |
 
 ### D항목 — 분석 모델 (수학적 검증 필요)
 
