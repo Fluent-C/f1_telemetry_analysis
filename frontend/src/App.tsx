@@ -261,6 +261,7 @@ export default function App() {
                 <TelemetryChart
                   comparisons={telemetry.comparisons}
                   isDashedB={sameTeam}
+                  raceControlMsgs={raceControlMsgs}
                   onHover={setHoverTimeMs}
                 />
               </div>

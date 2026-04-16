@@ -11,12 +11,13 @@
 
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
-import type { DriverTelemetry } from '../types/f1'
+import type { DriverTelemetry, RaceControlMessage } from '../types/f1'
 
 interface Props {
-  comparisons: DriverTelemetry[]
-  isDashedB?:  boolean
-  onHover?: (timeMs: number | null) => void
+  comparisons:      DriverTelemetry[]
+  isDashedB?:       boolean
+  raceControlMsgs?: RaceControlMessage[]
+  onHover?:         (timeMs: number | null) => void
 }
 
 // 패널 레이아웃 (top%, height% 는 전체 차트 영역 기준)
@@ -29,16 +30,82 @@ const PANELS = [
 
 type PanelKey = typeof PANELS[number]['key']
 
+/** DRS=2(활성) 구간의 [startMs, endMs] 배열 추출 */
+function extractDrsZones(comparisons: DriverTelemetry[]): [number, number][] {
+  if (comparisons.length === 0) return []
+  const d = comparisons[0].data
+  const zones: [number, number][] = []
+  let start: number | null = null
+  for (let i = 0; i < d.time_ms.length; i++) {
+    const active = d.drs?.[i] === 2
+    if (active && start === null) {
+      start = d.time_ms[i]
+    } else if (!active && start !== null) {
+      zones.push([start, d.time_ms[i - 1]])
+      start = null
+    }
+  }
+  if (start !== null) zones.push([start, d.time_ms[d.time_ms.length - 1]])
+  return zones
+}
+
+/** SC/VSC 구간의 [startMs, endMs, label] 추출 (time_ms 기반) */
+function extractScZones(msgs: RaceControlMessage[]): [number, number, string][] {
+  const zones: [number, number, string][] = []
+  let start: number | null = null
+  let label = ''
+  for (const m of msgs) {
+    if (m.time_ms == null) continue
+    const flag = (m.flag ?? '').toUpperCase()
+    if ((flag.includes('SAFETY CAR') || flag.includes('VIRTUAL SAFETY CAR')) && start === null) {
+      start = m.time_ms
+      label = flag.includes('VIRTUAL') ? 'VSC' : 'SC'
+    } else if ((flag === 'GREEN' || flag === 'CLEAR') && start !== null) {
+      zones.push([start, m.time_ms, label])
+      start = null
+    }
+  }
+  return zones
+}
+
 function buildSeries(
   comparisons: DriverTelemetry[],
   panelIndex: number,
   key: PanelKey,
   isDashedB: boolean,
+  drsZones: [number, number][],
+  scZones: [number, number, string][],
 ) {
   const isBrake = key === 'brake'
   return comparisons.map((comp, driverIdx) => {
     const color     = `#${comp.team_color}`
     const lineType  = ((driverIdx === 1 && isDashedB) ? 'dashed' : 'solid') as 'dashed' | 'solid'
+
+    // 첫 번째 드라이버에만 markArea 추가 (DRS: Speed만, SC/VSC: 전 패널)
+    const areas: [{ xAxis: number; itemStyle: { color: string } }, { xAxis: number }][] = []
+
+    if (driverIdx === 0) {
+      // DRS 구간 — Speed 패널만
+      if (key === 'speed') {
+        for (const [s, e] of drsZones) {
+          areas.push([
+            { xAxis: s, itemStyle: { color: 'rgba(46, 204, 113, 0.08)' } },
+            { xAxis: e },
+          ])
+        }
+      }
+      // SC/VSC 구간 — 전체 패널
+      for (const [s, e, label] of scZones) {
+        const c = label === 'SC' ? 'rgba(241, 196, 15, 0.10)' : 'rgba(243, 156, 18, 0.08)'
+        areas.push([
+          { xAxis: s, itemStyle: { color: c } },
+          { xAxis: e },
+        ])
+      }
+    }
+
+    const markArea = areas.length > 0 ? { silent: true, data: areas } : undefined
+
     return {
       name:        `${comp.driver_code}-${key}`,
       type:        'line' as const,
@@ -53,6 +120,7 @@ function buildSeries(
         lineStyle: { width: 1.5, color, type: lineType },
       }),
       itemStyle:   { color },
+      ...(markArea ? { markArea } : {}),
       // brake는 boolean → 0/1로 변환
       data: comp.data.time_ms.map((t, i) => {
         const raw = (comp.data[key] as (number | boolean | null)[])[i]
@@ -65,7 +133,7 @@ function buildSeries(
   })
 }
 
-export function TelemetryChart({ comparisons, isDashedB = false, onHover }: Props) {
+export function TelemetryChart({ comparisons, isDashedB = false, raceControlMsgs = [], onHover }: Props) {
   if (comparisons.length === 0) return null
 
   const option: EChartsOption = {
@@ -179,7 +247,11 @@ export function TelemetryChart({ comparisons, isDashedB = false, onHover }: Prop
     })),
 
     // ── 시리즈 ───────────────────────────────────────────
-    series: PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key, isDashedB)),
+    series: (() => {
+      const drsZones = extractDrsZones(comparisons)
+      const scZones  = extractScZones(raceControlMsgs)
+      return PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key, isDashedB, drsZones, scZones))
+    })(),
 
     dataZoom: [
       { type: 'inside', xAxisIndex: [0, 1, 2, 3], filterMode: 'none' },
