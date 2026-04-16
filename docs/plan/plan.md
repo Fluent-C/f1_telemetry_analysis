@@ -5,7 +5,7 @@
 
 ---
 
-## 📍 현재 개발 현황 (2026-04-13 기준)
+## 📍 현재 개발 현황 (2026-04-14 기준)
 
 ### Phase 1 + Phase 1.5 진행 상태
 
@@ -28,17 +28,20 @@
 | Step 10b | UX — 동팀 드라이버 시각 구분 (Driver B 색상 밝기 조정 + 점선) | ✅ 완료 | `8ffbb4b` |
 | Step 11 | 트랙 맵 고도화 (코너 오버레이, 레이스 컨트롤 타임라인) | ✅ 완료 | `ae9bc86` |
 
-### 적재 데이터 현황 (로컬 MySQL, 2026-04-05)
+### 적재 데이터 현황 (로컬 MySQL, 2026-04-14)
 
 | 테이블 | rows | 비고 |
 |--------|------|------|
-| sessions | 110 | 2025 시즌 (스프린트 포함, etl_progress 기준 108 done) |
+| sessions | 120 | 2025 시즌 (스프린트 포함) |
 | drivers | 2,335 | |
-| laps | 65,655 | Step 9 이후 sector/speed/tyre/pit 컬럼 추가됨. --laps-only로 재적재 완료 (2026-04-06) |
+| laps | 65,655 | Step 9 이후 sector/speed/tyre/pit 컬럼 추가됨 |
 | telemetry | 30,195,513 | ~18Hz 샘플링, X/Y/Z 포함, brake 0/1 |
 | weather | 10,936 | |
 | teams | 10 | 2025 시즌 팀 색상 |
-| etl_progress | 108 | done 상태 |
+| session_results | 2,399 | Step 10 — 레이스/예선/스프린트 결과 |
+| circuits | 24 | Step 11 — FastF1 get_circuit_info(), 평균 16.8개 코너 |
+| race_control_messages | 6,256 | Step 11 — SC/VSC/플래그/페널티 등 |
+| etl_progress | 120 | done 상태 |
 
 ### 현재 실행 가능한 명령어
 
@@ -206,7 +209,7 @@ ssh user@vps "mysql f1db < ~/sync/round${ROUND}_meta.sql && \
 
 ### Phase 2 필수 고려사항
 - **레이트 리미팅 (GAP-04):** `slowapi` 라이브러리로 IP당 분당 요청 제한 적용. Redis 연동 시 분산 환경에서도 동작. 퍼블릭 배포 전 반드시 완료.
-- **서킷 메타데이터 확정 (GAP-02):** F1 MCP Server, OpenF1 API, Jolpica F1 API 등 외부 데이터소스에서 서킷 코너/스트레이트 구간 데이터 제공 여부 조사. Phase 3 코너링 분석의 선결 조건이므로 Phase 2 기간 중 반드시 결정.
+- **서킷 메타데이터 (GAP-02 해결):** Step 11에서 FastF1 `session.get_circuit_info()`로 코너 데이터를 수집해 `circuits` 테이블에 적재 완료. 2025 시즌 24개 서킷, 평균 16.8개 코너. Phase 3 코너링 분석에 바로 활용 가능.
 - **신규 시즌 파티션 추가:** 매 시즌 시작 전 `ALTER TABLE telemetry ADD PARTITION p{year} VALUES LESS THAN ({year+1})` 실행.
 
 ### 배포 체크리스트
@@ -217,12 +220,9 @@ ssh user@vps "mysql f1db < ~/sync/round${ROUND}_meta.sql && \
 - [ ] slowapi 레이트 리미팅 적용 (IP당 분당 30회)
 - [ ] GitHub Actions CI/CD 파이프라인 구축
 - [ ] 라운드 단위 증분 동기화 스크립트 작성 및 테스트
-- [ ] 서킷 메타데이터 데이터소스 결정 (F1 MCP Server / OpenF1 API 등 조사)
-- [ ] circuits 테이블 마이그레이션 (아래 순서 준수)
-  - [ ] ① `circuits` 테이블 생성
-  - [ ] ② Phase 1에서 적재된 `sessions.circuit_key` 목록으로 circuits 기본 데이터 삽입
-  - [ ] ③ 모든 circuit_key 값이 circuits에 존재함을 확인한 후 FK 추가
-  - [ ] ④ 코너/DRS 구간 데이터 보강 (데이터소스 결정 후)
+- [x] ~~서킷 메타데이터 데이터소스 결정~~ — Step 11에서 FastF1 get_circuit_info()로 해결
+- [x] ~~circuits 테이블 생성 및 데이터 삽입~~ — Step 11 완료 (24개 서킷)
+- [ ] circuits FK 추가 (session_results → circuits 참조 무결성, 선택사항)
 - [ ] 구글 애드센스 신청
 - [ ] Vercel 배포 및 환경변수 설정
 
