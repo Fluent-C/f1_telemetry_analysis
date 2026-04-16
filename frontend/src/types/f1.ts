@@ -40,6 +40,14 @@ export interface Lap {
   deleted:          boolean
 }
 
+export interface WeatherSummary {
+  air_temp:    number | null
+  track_temp:  number | null
+  humidity:    number | null
+  rainfall:    number | null  // 0 or 1
+  wind_speed:  number | null
+}
+
 export interface CircuitCorner {
   number:   number
   letter:   string

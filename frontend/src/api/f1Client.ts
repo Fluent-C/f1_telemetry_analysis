@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Session, Driver, Lap, TelemetryResponse, SessionResult, CircuitInfo, RaceControlMessage } from '../types/f1'
+import type { Session, Driver, Lap, TelemetryResponse, SessionResult, CircuitInfo, RaceControlMessage, WeatherSummary } from '../types/f1'
 
 const api = axios.create({
   baseURL: 'http://localhost:8000',
@@ -24,6 +24,9 @@ export const fetchAllLaps = (sessionId: number): Promise<Lap[]> =>
 
 export const fetchResults = (sessionId: number): Promise<SessionResult[]> =>
   api.get<SessionResult[]>('/results', { params: { session_id: sessionId } }).then(r => r.data)
+
+export const fetchWeatherSummary = (sessionId: number): Promise<WeatherSummary | null> =>
+  api.get<WeatherSummary | null>(`/sessions/${sessionId}/weather`).then(r => r.data)
 
 export const fetchCircuit = (circuitKey: string): Promise<CircuitInfo> =>
   api.get<CircuitInfo>(`/circuits/${encodeURIComponent(circuitKey)}`).then(r => r.data)

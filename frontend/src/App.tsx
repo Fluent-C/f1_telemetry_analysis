@@ -7,6 +7,7 @@ import { useTelemetry }       from './hooks/useTelemetry'
 import { useResults }         from './hooks/useResults'
 import { useCircuit }         from './hooks/useCircuit'
 import { useRaceControl }     from './hooks/useRaceControl'
+import { useWeather }         from './hooks/useWeather'
 import { SessionSelector }    from './components/SessionSelector'
 import { DriverLapSelector }  from './components/DriverLapSelector'
 import { TelemetryChart }     from './components/TelemetryChart'
@@ -87,6 +88,9 @@ export default function App() {
   const { data: circuitInfo }          = useCircuit(currentSession?.circuit_key ?? null)
   const { data: raceControlMsgs = [] } = useRaceControl(sessionId)
 
+  // C-2: 날씨 요약
+  const { data: weather } = useWeather(sessionId)
+
   // 드라이버 정렬: 레이스·스프린트 → 결과 순위순, 그 외 → 최속 랩타임순
   const sortedDrivers = useMemo(() => {
     if (!drivers || drivers.length === 0) return drivers
@@ -149,6 +153,18 @@ export default function App() {
       <header className="app-header">
         <h1 className="app-title">F1 Telemetry Analytics</h1>
         {sessionLabel && <span className="session-label">{sessionLabel}</span>}
+        {weather && (
+          <span style={{
+            fontSize: 11, color: '#666', marginLeft: 12,
+            display: 'inline-flex', gap: 10, alignItems: 'center',
+          }}>
+            <span title="Air Temperature">Air {weather.air_temp}°C</span>
+            <span title="Track Temperature">Track {weather.track_temp}°C</span>
+            <span title="Humidity">Hum {weather.humidity}%</span>
+            {weather.rainfall ? <span style={{ color: '#3498db' }}>Rain</span> : null}
+            {weather.wind_speed != null && <span>Wind {weather.wind_speed}km/h</span>}
+          </span>
+        )}
       </header>
 
       {/* ── 컨트롤 패널 ───────────────────────────────── */}

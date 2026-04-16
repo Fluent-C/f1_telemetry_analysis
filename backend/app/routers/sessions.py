@@ -47,3 +47,25 @@ async def list_laps(
     if not laps:
         raise HTTPException(status_code=404, detail='세션 또는 드라이버를 찾을 수 없습니다.')
     return laps
+
+
+@router.get('/{session_id}/weather')
+async def get_weather_summary(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """세션의 평균 날씨 요약을 반환한다."""
+    sql = text("""
+        SELECT
+            ROUND(AVG(air_temp), 1)   AS air_temp,
+            ROUND(AVG(track_temp), 1) AS track_temp,
+            ROUND(AVG(humidity), 0)   AS humidity,
+            MAX(rainfall)             AS rainfall,
+            ROUND(AVG(wind_speed), 1) AS wind_speed
+        FROM weather
+        WHERE session_id = :sid
+    """)
+    row = (await db.execute(sql, {'sid': session_id})).mappings().first()
+    if not row or row['air_temp'] is None:
+        return None
+    return dict(row)
