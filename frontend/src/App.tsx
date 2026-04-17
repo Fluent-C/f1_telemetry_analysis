@@ -18,7 +18,8 @@ import { ResultsTable }       from './components/ResultsTable'
 import { PositionChart }      from './components/PositionChart'
 import { GapChart }           from './components/GapChart'
 import { RaceControlTimeline } from './components/RaceControlTimeline'
-import { DrsAnalysisChart }   from './components/DrsAnalysisChart'
+import { DrsAnalysisChart }     from './components/DrsAnalysisChart'
+import { FuelCorrectedChart }   from './components/FuelCorrectedChart'
 
 const CURRENT_SEASON = 2025
 
@@ -343,6 +344,20 @@ export default function App() {
                   allLaps={allLaps ?? []}
                   driverColors={adjustedColors}
                   dashedDrivers={dashedDrivers}
+                />
+              </div>
+            )}
+
+            {/* D-1: 연료 보정 페이스 곡선 */}
+            {['R', 'S'].includes(sessionType) && (
+              <div>
+                <h3 style={{ color: '#888', fontSize: 11, letterSpacing: '0.1em', margin: '0 0 8px 0' }}>
+                  FUEL-CORRECTED PACE
+                </h3>
+                <FuelCorrectedChart
+                  allLaps={allLaps ?? []}
+                  driverColors={driverColors}
+                  sessionType={sessionType}
                 />
               </div>
             )}
