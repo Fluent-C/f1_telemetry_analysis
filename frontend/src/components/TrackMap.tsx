@@ -15,13 +15,61 @@ const ELEV_COLORS = [
   '#2b83ba', '#abdda4', '#ffffbf', '#fdae61', '#d7191c',
 ]
 
+// 횡가속도(Lateral G) 컬러 팔레트 — 0G(파랑) → 중간(초록) → 높음(빨강)
+const G_COLORS = [
+  '#313695', '#4575b4', '#74add1', '#abd9e9',
+  '#e0f3f8', '#ffffbf', '#fee090', '#fdae61',
+  '#f46d43', '#d73027', '#a50026',
+]
+
+type ColorMode = 'elevation' | 'lateralG'
+
+/**
+ * 횡가속도 근사 산출 (단위: G)
+ * lateral_g = v² × κ / 9.81,  κ = |v1 × v2| / (|v1| × |v2| + ε)
+ */
+function computeLateralG(
+  x: (number | null)[],
+  y: (number | null)[],
+  speed_kmh: (number | null)[],
+): number[] {
+  const n = x.length
+  const g = new Array<number>(n).fill(0)
+  const G = 9.81
+
+  for (let i = 1; i < n - 1; i++) {
+    const x0 = x[i - 1], x1 = x[i], x2 = x[i + 1]
+    const y0 = y[i - 1], y1 = y[i], y2 = y[i + 1]
+    const s  = speed_kmh[i]
+    if (x0 == null || x1 == null || x2 == null || y0 == null || y1 == null || y2 == null || s == null) continue
+
+    const dx1 = x1 - x0, dy1 = y1 - y0
+    const dx2 = x2 - x1, dy2 = y2 - y1
+    const cross = Math.abs(dx1 * dy2 - dy1 * dx2)
+    const len1  = Math.sqrt(dx1 * dx1 + dy1 * dy1)
+    const len2  = Math.sqrt(dx2 * dx2 + dy2 * dy2)
+    const kappa = cross / (len1 * len2 + 1e-6)   // curvature ≈ sin(Δθ) / segment_len
+
+    const v_mps = s / 3.6
+    g[i] = Math.min((v_mps * v_mps * kappa) / G, 8)  // clamp to 8G
+  }
+  return g
+}
+
 export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitInfo }: Props) {
-  const [zScale,   setZScale]   = useState(3.0)
-  const [alpha,    setAlpha]    = useState(45)   // 부감 각도 (0=수평, 90=정면부감)
-  const [beta,     setBeta]     = useState(15)   // 수평 회전
-  const [distance, setDistance] = useState(200)  // 카메라 거리
+  const [zScale,    setZScale]    = useState(3.0)
+  const [alpha,     setAlpha]     = useState(45)
+  const [beta,      setBeta]      = useState(15)
+  const [distance,  setDistance]  = useState(200)
+  const [colorMode, setColorMode] = useState<ColorMode>('elevation')
 
   const refData = comparisons[0]?.data
+
+  // ── 횡가속도 데이터 (D-3) ─────────────────────────
+  const lateralGArr = useMemo(() => {
+    if (!refData?.x || !refData.y || !refData.speed) return [] as number[]
+    return computeLateralG(refData.x, refData.y, refData.speed)
+  }, [comparisons])
 
   // ── 이진탐색 헬퍼 ────────────────────────────────
   const findClosest = (arr: number[], target: number) => {
@@ -35,36 +83,41 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
   }
 
   // ── 트랙 정적 데이터 ─────────────────────────────
-  const { trackScatter3D, trackLine2D, minZ, maxZ, bounds } = useMemo(() => {
+  const { trackScatter3D, trackScatter2D, trackLine2D, minVal, maxVal, bounds } = useMemo(() => {
     const empty = {
       trackScatter3D: [] as [number, number, number, number][],
+      trackScatter2D: [] as [number, number, number][],
       trackLine2D:    [] as [number, number][],
-      minZ: 0, maxZ: 1,
+      minVal: 0, maxVal: 1,
       bounds: { minX: 0, maxX: 1, minY: 0, maxY: 1 },
     }
     if (!refData?.x || refData.x.length === 0) return empty
 
     const trackScatter3D: [number, number, number, number][] = []
+    const trackScatter2D: [number, number, number][] = []
     const trackLine2D:    [number, number][] = []
-    const zVals: number[] = []
+    const colorVals: number[] = []
     let minX = Infinity, maxX = -Infinity
     let minY = Infinity, maxY = -Infinity
 
     for (let i = 0; i < refData.x.length; i++) {
-      const x = refData.x[i]; const y = refData.y[i]; const z = refData.z?.[i] ?? 0
+      const x = refData.x[i]; const y = refData.y[i]
+      const z = refData.z?.[i] ?? 0
+      const colorVal = colorMode === 'lateralG' ? (lateralGArr[i] ?? 0) : z
       if (x != null && y != null) {
-        trackScatter3D.push([x, y, z * zScale, z])  // 4번째 = raw Z (컬러링용)
+        trackScatter3D.push([x, y, z * zScale, colorVal])
+        trackScatter2D.push([x, y, colorVal])
         trackLine2D.push([x, y])
-        if (refData.z?.[i] != null) zVals.push(z)
+        colorVals.push(colorVal)
         minX = Math.min(minX, x); maxX = Math.max(maxX, x)
         minY = Math.min(minY, y); maxY = Math.max(maxY, y)
       }
     }
 
-    const minZ = zVals.length > 0 ? Math.min(...zVals) : 0
-    const maxZ = zVals.length > 0 ? Math.max(...zVals) : 1
-    return { trackScatter3D, trackLine2D, minZ, maxZ, bounds: { minX, maxX, minY, maxY } }
-  }, [comparisons, zScale])
+    const minVal = colorVals.length > 0 ? Math.min(...colorVals) : 0
+    const maxVal = colorVals.length > 0 ? Math.max(...colorVals) : 1
+    return { trackScatter3D, trackScatter2D, trackLine2D, minVal, maxVal, bounds: { minX, maxX, minY, maxY } }
+  }, [comparisons, zScale, colorMode, lateralGArr])
 
   // ── 드라이버 현재 위치 (hover 또는 중간 지점) ────────
   const activePoints3D = useMemo(() => {
@@ -130,12 +183,12 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
     return {
       backgroundColor: '#0d0d0d',
       visualMap: {
-        show: false,   // HTML 범례 사용 → echarts 범례 숨김
-        min: minZ,
-        max: maxZ,
-        dimension: 3,  // 데이터 4번째 값(raw Z) 으로 컬러링
+        show: false,
+        min: minVal,
+        max: maxVal,
+        dimension: 3,
         seriesIndex: 0,
-        inRange: { color: ELEV_COLORS },
+        inRange: { color: colorMode === 'lateralG' ? G_COLORS : ELEV_COLORS },
       },
       grid3D: {
         boxWidth:  100,
@@ -173,7 +226,7 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
         } as any,
       ],
     }
-  }, [trackScatter3D, activePoints3D, bounds, minZ, maxZ, alpha, beta, distance])
+  }, [trackScatter3D, activePoints3D, bounds, minVal, maxVal, alpha, beta, distance, colorMode])
 
   // ── 코너 레이블 데이터 ────────────────────────────────
   const cornerPoints = useMemo(() => {
@@ -187,20 +240,38 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
   // ── 2D 옵션 ──────────────────────────────────────────
   const option2D = useMemo(() => {
     if (trackLine2D.length === 0) return {}
+
+    const visualMapConfig = colorMode === 'lateralG' ? [{
+      show: false,
+      min: minVal,
+      max: Math.min(maxVal, 5),
+      dimension: 0,
+      seriesIndex: 0,
+      inRange: { color: G_COLORS },
+    }] : []
+
     return {
       backgroundColor: '#0d0d0d',
       tooltip: { show: false },
+      visualMap: visualMapConfig.length > 0 ? visualMapConfig[0] : undefined,
       xAxis: { type: 'value', show: false, min: bounds.minX, max: bounds.maxX, scale: true },
       yAxis: { type: 'value', show: false, min: bounds.minY, max: bounds.maxY, scale: true },
       grid: { left: 10, right: 10, top: 10, bottom: 10 },
       series: [
-        {
-          type: 'line',
-          data: trackLine2D,
-          lineStyle: { color: '#444', width: 2 },
-          symbol: 'none',
-          animation: false,
-        },
+        colorMode === 'lateralG'
+          ? {
+              type: 'scatter',
+              data: trackScatter2D.map(([x, y, g]) => [x, y, g]),
+              symbolSize: 4,
+              animation: false,
+            }
+          : {
+              type: 'line',
+              data: trackLine2D,
+              lineStyle: { color: '#444', width: 2 },
+              symbol: 'none',
+              animation: false,
+            },
         {
           type: 'effectScatter',
           data: activePoints2D,
@@ -237,11 +308,10 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
         }] : []),
       ],
     }
-  }, [trackLine2D, activePoints2D, bounds, cornerPoints])
+  }, [trackLine2D, trackScatter2D, activePoints2D, bounds, cornerPoints, colorMode, minVal, maxVal])
 
   if (comparisons.length === 0) return null
 
-  const elevRange = maxZ - minZ
 
   return (
     <div style={{ width: '100%', backgroundColor: '#0d0d0d', border: '1px solid #333' }}>
@@ -284,22 +354,37 @@ export function TrackMap({ comparisons, hoverTimeMs, isDashedB = false, circuitI
             style={{ width: 80 }} />
         </label>
 
-        {/* Elevation 범례 (HTML 그라디언트) */}
-        {elevRange > 0.1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-            <span style={{ color: '#444' }}>Elev:</span>
-            <span style={{ color: '#555', fontSize: 10 }}>{Math.round(minZ)}m</span>
+        {/* Color Mode 토글 */}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          {(['elevation', 'lateralG'] as ColorMode[]).map(mode => (
+            <button key={mode} onClick={() => setColorMode(mode)} style={{
+              background: colorMode === mode ? '#333' : 'none',
+              border: '1px solid #333',
+              borderRadius: 3,
+              color: colorMode === mode ? '#ccc' : '#555',
+              fontSize: 10,
+              padding: '2px 7px',
+              cursor: 'pointer',
+            }}>
+              {mode === 'elevation' ? 'Elev' : 'Lateral G'}
+            </button>
+          ))}
+        </div>
+
+        {/* 컬러 범례 (HTML 그라디언트) */}
+        {(maxVal - minVal) > 0.01 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: '#555', fontSize: 10 }}>
+              {colorMode === 'lateralG' ? '0G' : `${Math.round(minVal)}m`}
+            </span>
             <div style={{
               width: 80, height: 8, borderRadius: 3,
-              background: `linear-gradient(to right, ${ELEV_COLORS.join(',')})`,
+              background: `linear-gradient(to right, ${(colorMode === 'lateralG' ? G_COLORS : ELEV_COLORS).join(',')})`,
             }} />
-            <span style={{ color: '#555', fontSize: 10 }}>{Math.round(maxZ)}m</span>
+            <span style={{ color: '#555', fontSize: 10 }}>
+              {colorMode === 'lateralG' ? `${maxVal.toFixed(1)}G` : `${Math.round(maxVal)}m`}
+            </span>
           </div>
-        )}
-        {elevRange <= 0.1 && (
-          <span style={{ marginLeft: 'auto', color: '#444', fontSize: 10 }}>
-            Elevation data unavailable
-          </span>
         )}
       </div>
 
