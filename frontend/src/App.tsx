@@ -18,6 +18,7 @@ import { ResultsTable }       from './components/ResultsTable'
 import { PositionChart }      from './components/PositionChart'
 import { GapChart }           from './components/GapChart'
 import { RaceControlTimeline } from './components/RaceControlTimeline'
+import { DrsAnalysisChart }   from './components/DrsAnalysisChart'
 
 const CURRENT_SEASON = 2025
 
@@ -280,6 +281,14 @@ export default function App() {
                   raceControlMsgs={raceControlMsgs}
                   onHover={setHoverTimeMs}
                 />
+
+                {/* D-2: DRS 델타 분석 */}
+                <div>
+                  <h3 style={{ color: '#888', fontSize: 11, letterSpacing: '0.1em', margin: '8px 0 4px 0' }}>
+                    DRS ZONE ANALYSIS
+                  </h3>
+                  <DrsAnalysisChart comparisons={telemetry.comparisons} />
+                </div>
               </div>
             ) : (
               !telLoading && sessionId && (
