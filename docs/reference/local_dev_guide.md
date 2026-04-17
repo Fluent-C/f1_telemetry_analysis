@@ -5,6 +5,56 @@
 
 ---
 
+## ⚡ 한 번에 실행하기 (권장)
+
+프로젝트 루트의 **`start_dev.bat`** 파일을 더블클릭하면:
+- Docker MySQL 자동 시작
+- FastAPI 백엔드 (새 창)
+- React 프론트엔드 (새 창, 네트워크 접속 포함)
+- 브라우저 자동 열기
+
+```
+f1_telemetry_analysis/
+└── start_dev.bat   ← 이 파일을 더블클릭
+```
+
+> **조건:** Docker Desktop이 먼저 실행되어 있어야 합니다.
+
+---
+
+## 🌐 네트워크 접속 방법 (스마트폰·태블릿·다른 PC)
+
+같은 Wi-Fi에 연결된 기기에서 접속할 수 있습니다.
+
+### 1단계: 내 PC의 IP 주소 확인
+
+```powershell
+ipconfig
+# → "IPv4 주소" 항목 확인 (예: 192.168.1.100)
+```
+
+또는 `start_dev.bat` 실행 후 창 하단에서 자동으로 표시됩니다.
+
+### 2단계: 다른 기기에서 접속
+
+```
+http://192.168.1.100:5173       ← 프론트엔드 대시보드
+http://192.168.1.100:8000/docs  ← API Swagger (선택)
+```
+
+> IP 주소는 공유기마다 다릅니다. `ipconfig` 출력의 **IPv4** 값을 사용하세요.
+
+### 방화벽 허용 (처음 한 번만, Windows 방화벽이 차단할 경우)
+
+PowerShell을 **관리자 권한**으로 실행 후:
+
+```powershell
+netsh advfirewall firewall add rule name="F1 Frontend 5173" dir=in action=allow protocol=TCP localport=5173
+netsh advfirewall firewall add rule name="F1 Backend 8000" dir=in action=allow protocol=TCP localport=8000
+```
+
+---
+
 ## 사전 요구사항
 
 | 도구 | 버전 | 확인 명령 |
