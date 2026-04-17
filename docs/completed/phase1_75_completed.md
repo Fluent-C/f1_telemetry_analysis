@@ -20,10 +20,10 @@
 
 | # | 기능 | 데이터 소스 | 구현 범위 | 검증 기준 |
 |---|------|-----------|----------|----------|
-| D-2 | DRS 델타 팀별 비교 | `telemetry.drs`, `telemetry.speed` | DRS 활성 전후 최고속도 차이 차트 | 레드불 vs 맥라렌 등 알려진 특성과 일치하는지 |
-| D-4 | 트레일 브레이킹 구간 표시 | `telemetry.brake`, `telemetry.throttle` | Brake+Throttle 동시 입력 구간 하이라이트 | 코너 진입 시점에만 나타나는지 |
-| D-3 | 횡가속도(Lateral G) 히트맵 | `telemetry.x`, `telemetry.y`, `telemetry.speed` | X,Y 곡률 미분 → G-Force 컬러링 트랙 맵 | 고속 코너에서 높은 G, 직선에서 0 근접 |
-| D-1 | 연료 보정 페이스 곡선 | `laps.lap_time_ms`, `laps.tyre_life`, `weather.track_temp` | 연료 무게 차감 후 순수 타이어 열화율 도출 | TyreLife 증가 시 보정 랩타임 증가 확인 |
+| D-2 | ✅ DRS 델타 팀별 비교 | `telemetry.drs`, `telemetry.speed` | DRS 존별 최고속도 + 속도이득 막대 차트 — `88c8066` | 검증 대기 |
+| D-4 | ✅ 트레일 브레이킹 구간 표시 | `telemetry.brake`, `telemetry.throttle` | Brake·Throttle 동시 입력 구간 보라 밴드 — `e017242` | 검증 대기 |
+| D-3 | ✅ 횡가속도(Lateral G) 히트맵 | `telemetry.x`, `telemetry.y`, `telemetry.speed` | TrackMap Elev/Lateral G 토글 컬러링 — `3b7ba23` | 검증 대기 |
+| D-1 | ✅ 연료 보정 페이스 곡선 | `laps.lap_time_ms`, `laps.tyre_life` | FuelCorrectedChart 파라미터 슬라이더 포함 — `f68a629` | 검증 대기 |
 
 ### C-3 — 랜딩 페이지 (Phase 2 배포 직전)
 
