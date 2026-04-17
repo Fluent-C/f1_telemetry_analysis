@@ -49,6 +49,35 @@ function extractDrsZones(comparisons: DriverTelemetry[]): [number, number][] {
   return zones
 }
 
+/**
+ * 트레일 브레이킹 구간 추출 — brake=1 AND throttle > 5 인 연속 구간
+ * 각 드라이버별로 계산하여 [driverIdx, startMs, endMs] 반환
+ */
+function extractTrailBrakingZones(comparisons: DriverTelemetry[]): [number, number, number][] {
+  const result: [number, number, number][] = []
+  comparisons.forEach((comp, driverIdx) => {
+    const d = comp.data
+    let start: number | null = null
+    for (let i = 0; i < d.time_ms.length; i++) {
+      const brake    = d.brake?.[i]
+      const throttle = d.throttle?.[i] as number | null
+      // brake 활성(true 또는 1) AND throttle>5%: 동시 입력 = 트레일 브레이킹
+      const isTrail = !!brake && (throttle != null && throttle > 5)
+      if (isTrail && start === null) {
+        start = d.time_ms[i]
+      } else if (!isTrail && start !== null) {
+        // 최소 50ms 이상 지속된 구간만 (노이즈 제거)
+        if (d.time_ms[i - 1] - start >= 50) {
+          result.push([driverIdx, start, d.time_ms[i - 1]])
+        }
+        start = null
+      }
+    }
+    if (start !== null) result.push([driverIdx, start, d.time_ms[d.time_ms.length - 1]])
+  })
+  return result
+}
+
 /** SC/VSC 구간의 [startMs, endMs, label] 추출 (time_ms 기반) */
 function extractScZones(msgs: RaceControlMessage[]): [number, number, string][] {
   const zones: [number, number, string][] = []
@@ -75,6 +104,7 @@ function buildSeries(
   isDashedB: boolean,
   drsZones: [number, number][],
   scZones: [number, number, string][],
+  trailZones: [number, number, number][],  // [driverIdx, startMs, endMs]
 ) {
   const isBrake = key === 'brake'
   return comparisons.map((comp, driverIdx) => {
@@ -101,6 +131,17 @@ function buildSeries(
           { xAxis: s, itemStyle: { color: c } },
           { xAxis: e },
         ])
+      }
+      // 트레일 브레이킹 구간 — Brake·Throttle 패널에 해당 드라이버 보라 밴드
+      if (key === 'brake' || key === 'throttle') {
+        for (const [di, s, e] of trailZones) {
+          if (di === driverIdx) {
+            areas.push([
+              { xAxis: s, itemStyle: { color: 'rgba(155, 89, 182, 0.18)' } },
+              { xAxis: e },
+            ])
+          }
+        }
       }
     }
 
@@ -248,9 +289,10 @@ export function TelemetryChart({ comparisons, isDashedB = false, raceControlMsgs
 
     // ── 시리즈 ───────────────────────────────────────────
     series: (() => {
-      const drsZones = extractDrsZones(comparisons)
-      const scZones  = extractScZones(raceControlMsgs)
-      return PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key, isDashedB, drsZones, scZones))
+      const drsZones   = extractDrsZones(comparisons)
+      const scZones    = extractScZones(raceControlMsgs)
+      const trailZones = extractTrailBrakingZones(comparisons)
+      return PANELS.flatMap((p, i) => buildSeries(comparisons, i, p.key, isDashedB, drsZones, scZones, trailZones))
     })(),
 
     dataZoom: [
