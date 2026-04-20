@@ -30,14 +30,15 @@ const PANELS = [
 
 type PanelKey = typeof PANELS[number]['key']
 
-/** DRS=2(활성) 구간의 [startMs, endMs] 배열 추출 */
+/** DRS 활성(drs >= 8) 구간의 [startMs, endMs] 배열 추출 — Gemini 검증 (2026-04-18) */
 function extractDrsZones(comparisons: DriverTelemetry[]): [number, number][] {
   if (comparisons.length === 0) return []
   const d = comparisons[0].data
   const zones: [number, number][] = []
   let start: number | null = null
   for (let i = 0; i < d.time_ms.length; i++) {
-    const active = d.drs?.[i] === 2
+    const drsVal = d.drs?.[i]
+    const active = drsVal != null && drsVal >= 8
     if (active && start === null) {
       start = d.time_ms[i]
     } else if (!active && start !== null) {
@@ -61,13 +62,13 @@ function extractTrailBrakingZones(comparisons: DriverTelemetry[]): [number, numb
     for (let i = 0; i < d.time_ms.length; i++) {
       const brake    = d.brake?.[i]
       const throttle = d.throttle?.[i] as number | null
-      // brake 활성(true 또는 1) AND throttle>5%: 동시 입력 = 트레일 브레이킹
-      const isTrail = !!brake && (throttle != null && throttle > 5)
+      // brake 활성(true 또는 1) AND throttle>2%: 의도적 동시 입력 = 트레일 브레이킹
+      const isTrail = !!brake && (throttle != null && throttle > 2)
       if (isTrail && start === null) {
         start = d.time_ms[i]
       } else if (!isTrail && start !== null) {
-        // 최소 50ms 이상 지속된 구간만 (노이즈 제거)
-        if (d.time_ms[i - 1] - start >= 50) {
+        // 최소 200ms(약 4샘플) 이상 지속된 구간만 — Gemini 검증 (2026-04-18)
+        if (d.time_ms[i - 1] - start >= 200) {
           result.push([driverIdx, start, d.time_ms[i - 1]])
         }
         start = null

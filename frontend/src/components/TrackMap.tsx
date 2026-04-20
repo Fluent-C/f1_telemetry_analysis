@@ -25,8 +25,9 @@ const G_COLORS = [
 type ColorMode = 'elevation' | 'lateralG'
 
 /**
- * 횡가속도 근사 산출 (단위: G)
- * lateral_g = v² × κ / 9.81,  κ = |v1 × v2| / (|v1| × |v2| + ε)
+ * 횡가속도 산출 (단위: G) — Gemini 3.1 Pro 검증 완료 (2026-04-18)
+ * 외접원 반지름 공식: κ = 2|cross| / (a × b × c),  단위: m⁻¹
+ * lateral_g = v² × κ / 9.81
  */
 function computeLateralG(
   x: (number | null)[],
@@ -43,12 +44,18 @@ function computeLateralG(
     const s  = speed_kmh[i]
     if (x0 == null || x1 == null || x2 == null || y0 == null || y1 == null || y2 == null || s == null) continue
 
-    const dx1 = x1 - x0, dy1 = y1 - y0
-    const dx2 = x2 - x1, dy2 = y2 - y1
+    const dx1 = x1 - x0, dy1 = y1 - y0   // segment a
+    const dx2 = x2 - x1, dy2 = y2 - y1   // segment b
+    const dx3 = x2 - x0, dy3 = y2 - y0   // chord   c
+
+    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1)  // a (m)
+    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)  // b (m)
+    const len3 = Math.sqrt(dx3 * dx3 + dy3 * dy3)  // c (m)
+
     const cross = Math.abs(dx1 * dy2 - dy1 * dx2)
-    const len1  = Math.sqrt(dx1 * dx1 + dy1 * dy1)
-    const len2  = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-    const kappa = cross / (len1 * len2 + 1e-6)   // curvature ≈ sin(Δθ) / segment_len
+
+    // 외접원 곡률 κ = 2·|cross| / (a·b·c)  →  단위: m⁻¹
+    const kappa = (2 * cross) / (len1 * len2 * len3 + 1e-6)
 
     const v_mps = s / 3.6
     g[i] = Math.min((v_mps * v_mps * kappa) / G, 8)  // clamp to 8G

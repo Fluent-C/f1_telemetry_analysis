@@ -12,8 +12,9 @@
  *
  * 파라미터 기본값 (조정 가능):
  *   total_fuel_kg        = 110   (레이스 시작 연료)
- *   fuel_per_lap_kg      = 1.8   (랩당 소모량 — 레이스 거리/속도에 따라 1.5~2.5)
- *   lap_time_per_kg_ms   = 80    (1kg 감량 시 이득 — 0.08s ≈ 80ms)
+ *   fuel_per_lap_kg      = 110 / 총랩수  (동적 계산 — F1 110kg 상한 기준)
+ *   lap_time_per_kg_ms   = 35   (1kg 감량 시 이득 — F1 Rule of Thumb: 10kg ≈ 0.3~0.35s)
+ *   Gemini 3.1 Pro 검증 완료 (2026-04-18): lapTimePerKg 35ms, fuelPerLap 동적 계산
  *
  * 검증 기준:
  *   - 보정 전: TyreLife 증가 시 랩타임이 오히려 빨라질 수 있음 (연료 효과 때문)
@@ -37,8 +38,7 @@ function msToSec(ms: number): string {
 
 export function FuelCorrectedChart({ allLaps, driverColors, sessionType }: Props) {
   const [totalFuel,    setTotalFuel]    = useState(110)   // kg
-  const [fuelPerLap,   setFuelPerLap]   = useState(1.8)   // kg/lap
-  const [lapTimePerKg, setLapTimePerKg] = useState(80)    // ms per kg
+  const [lapTimePerKg, setLapTimePerKg] = useState(35)    // ms per kg — F1 Rule of Thumb
 
   const option = useMemo(() => {
     if (allLaps.length === 0) return {}
@@ -54,8 +54,9 @@ export function FuelCorrectedChart({ allLaps, driverColors, sessionType }: Props
     const drivers = Object.keys(byDriver)
     if (drivers.length === 0) return {}
 
-    // 전체 랩 수 (보정 기준)
+    // 전체 랩 수 기준으로 fuelPerLap 동적 계산 (F1 110kg 상한 / 총 랩 수)
     const maxLap = Math.max(...allLaps.map(l => l.lap_number ?? 0))
+    const fuelPerLap = maxLap > 0 ? totalFuel / maxLap : 1.8
 
     const series = drivers.flatMap(code => {
       const laps   = byDriver[code].sort((a, b) => a.lap_number! - b.lap_number!)
@@ -145,7 +146,7 @@ export function FuelCorrectedChart({ allLaps, driverColors, sessionType }: Props
       },
       series,
     }
-  }, [allLaps, driverColors, totalFuel, fuelPerLap, lapTimePerKg])
+  }, [allLaps, driverColors, totalFuel, lapTimePerKg])
 
   if (!['R', 'S'].includes(sessionType)) {
     return (
@@ -172,13 +173,8 @@ export function FuelCorrectedChart({ allLaps, driverColors, sessionType }: Props
             onChange={e => setTotalFuel(+e.target.value)} style={sliderStyle} />
         </label>
         <label style={labelStyle}>
-          <span>Fuel/Lap&nbsp;<b style={{ color: '#aaa' }}>{fuelPerLap.toFixed(1)}kg</b></span>
-          <input type="range" min="1.0" max="3.0" step="0.1" value={fuelPerLap}
-            onChange={e => setFuelPerLap(+e.target.value)} style={sliderStyle} />
-        </label>
-        <label style={labelStyle}>
           <span>Lap gain/kg&nbsp;<b style={{ color: '#aaa' }}>{lapTimePerKg}ms</b></span>
-          <input type="range" min="40" max="120" step="5" value={lapTimePerKg}
+          <input type="range" min="20" max="60" step="5" value={lapTimePerKg}
             onChange={e => setLapTimePerKg(+e.target.value)} style={sliderStyle} />
         </label>
         <span style={{ color: '#444', fontSize: 10, alignSelf: 'center' }}>

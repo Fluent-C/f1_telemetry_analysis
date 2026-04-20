@@ -11,12 +11,12 @@
 
 ## 검증 대상 항목 현황
 
-| 항목 | 기능 | 구현 파일 | Claude 검토 | Gemini 검토 | 배포 가능 |
-|------|------|----------|------------|------------|---------|
-| D-3 | 횡가속도(Lateral G) | `TrackMap.tsx` | ⚠️ 단위 의심 | 🔲 미검토 | ❌ |
-| D-1 | 연료 보정 페이스 | `FuelCorrectedChart.tsx` | ⚠️ 파라미터 추정 | 🔲 미검토 | ❌ |
-| D-4 | 트레일 브레이킹 | `TelemetryChart.tsx` | ⚠️ 임계값 임의 | 🔲 미검토 | ❌ |
-| D-2 | DRS 델타 분석 | `DrsAnalysisChart.tsx` | ⚠️ 해석 모호 | 🔲 미검토 | ❌ |
+| 항목 | 기능 | 구현 파일 | Claude 검토 | Gemini 검토 | 수정 구현 | 배포 가능 |
+|------|------|----------|------------|------------|---------|---------|
+| D-3 | 횡가속도(Lateral G) | `TrackMap.tsx` | ✅ 완료 | ✅ 완료 | ✅ 구현완료 | ⏳ UI검증 대기 |
+| D-1 | 연료 보정 페이스 | `FuelCorrectedChart.tsx` | ✅ 완료 | ✅ 완료 | ✅ 구현완료 | ⏳ UI검증 대기 |
+| D-4 | 트레일 브레이킹 | `TelemetryChart.tsx` | ✅ 완료 | ✅ 완료 | ✅ 구현완료 | ⏳ UI검증 대기 |
+| D-2 | DRS 델타 분석 | `DrsAnalysisChart.tsx` | ✅ 완료 | ✅ 완료 | ✅ 구현완료 | ⏳ UI검증 대기 |
 
 ---
 
@@ -65,12 +65,31 @@ g[i] = Math.min((v_mps**2 * kappa) / 9.81, 8)
 
 ```
 [결과 기록 영역]
-- 단위 분석:
-- 수정 공식:
-- FastF1 좌표 단위:
-- 검증 기준 G값:
-- 검증 판정: ✅ 통과 / ❌ 수정 필요
+- 단위 분석: 현재 공식의 `kappa`는 `sin(θ)`를 의미하는 무차원수이므로 곡률(m⁻¹)이 아닙니다. 곡률의 단위는 1/반지름(1/R)이어야 합니다.
+- 수정 공식: 세 점을 이용한 외접원 반지름 공식을 사용하여 올바른 곡률(m⁻¹)을 구해야 합니다. `kappa = (2 * |v1 × v2|) / (|v1| * |v2| * |v3|)`
+```typescript
+const dx1 = x1 - x0, dy1 = y1 - y0;
+const dx2 = x2 - x1, dy2 = y2 - y1;
+const dx3 = x2 - x0, dy3 = y2 - y0;
+
+const len1 = Math.sqrt(dx1**2 + dy1**2); // a
+const len2 = Math.sqrt(dx2**2 + dy2**2); // b
+const len3 = Math.sqrt(dx3**2 + dy3**2); // c
+
+const cross = Math.abs(dx1*dy2 - dy1*dx2);
+
+// 단위: m^-1
+const kappa = (2 * cross) / (len1 * len2 * len3 + 1e-6);
+
+const v_mps = speed_kmh / 3.6;
+const lateralG = (v_mps**2 * kappa) / 9.81;
+g[i] = Math.min(lateralG, 8);
 ```
+- FastF1 좌표 단위: `pos_data` 기반의 X, Y 좌표는 통상적으로 미터(m) 단위로 제공되므로 m 단위로 간주하고 계산하면 됩니다.
+- 검증 기준 G값: Eau Rouge (Spa) 등 최고속 코너에서는 4~6G 사이의 측면 G가 발생합니다. 최대 상한선인 8G는 안전장치로 적절합니다.
+- 검증 판정: ❌ 수정 필요 (공식 단위 오류)
+```
+**Claude Code 수정 완료 (2026-04-20):** 외접원 반지름 공식 `κ = 2|cross|/(a·b·c)` 적용. TypeScript 컴파일 통과.
 
 ---
 
@@ -114,11 +133,17 @@ corrected_ms = lap_time_ms + fuelLeft × lapTimePerKg
 
 ```
 [결과 기록 영역]
-- lapTimePerKg 추천값 및 근거:
-- fuelPerLap 추정 방법:
-- 모델 개선안 (있다면):
-- 검증 판정: ✅ 통과 / ❌ 수정 필요
+- lapTimePerKg 추천값 및 근거: F1 엔지니어링 경험 법칙(Rule of Thumb)에 따르면 10kg당 약 0.3~0.35초(30~35ms/kg)의 랩타임 이득이 발생합니다. 현재 80ms는 과도하게 높습니다. 기본값을 35ms로 수정하고 슬라이더 범위를 20~60ms로 좁히는 것을 권장합니다.
+- fuelPerLap 추정 방법: `fuelPerLap = 110(kg) / 레이스 총 랩 수`를 동적으로 계산하여 사용하는 것이 가장 합리적입니다.
+- 모델 개선안 (있다면): 복잡한 열화 다중선형회귀 모델 대신, 현재의 연료 감소식에 `35ms/kg` 파라미터를 사용하는 편이 가볍고 실시간 차트에 적합합니다. 
+```typescript
+const totalFuel = 110; // kg
+const fuelPerLap = totalFuel / totalRaceLaps; // 레이스 총 랩 수 기준
+const lapTimePerKg = 35; // ms/kg
 ```
+- 검증 판정: ❌ 수정 필요 (경험적 파라미터 값 조정)
+```
+**Claude Code 수정 완료 (2026-04-20):** `lapTimePerKg` 80→35ms, `fuelPerLap` = totalFuel/maxLap 동적 계산, 슬라이더 범위 20~60ms. TypeScript 컴파일 통과.
 
 ---
 
@@ -153,11 +178,12 @@ const isTrail = !!brake && (throttle != null && throttle > 5)
 
 ```
 [결과 기록 영역]
-- Brake 채널 특성:
-- 추천 임계값:
-- 최소 지속 시간 권장:
-- 검증 판정: ✅ 통과 / ❌ 수정 필요
+- Brake 채널 특성: 프로젝트 CLAUDE.md 및 DB 스키마에 따르면 Brake는 Boolean(0/1)로 처리/저장되고 있습니다. 따라서 연속적인 브레이크 압력의 감소율은 알 수 없으므로, Brake=1과 Throttle 활성화의 중첩 구간으로 유추해야 합니다.
+- 추천 임계값: `brake === 1 && throttle > 2` (스로틀 2% 이상은 센서 노이즈가 아닌 의도적 입력으로 간주)
+- 최소 지속 시간 권장: 50ms는 20Hz 텔레메트리 기준 1포인트에 불과하여 센서 디싱크 노이즈일 확률이 매우 높습니다. 최소 **200ms (약 4샘플)** 이상 중첩이 지속될 때만 유효한 트레일 브레이킹/동시 입력으로 간주하도록 필터를 강화하세요.
+- 검증 판정: ❌ 수정 필요 (노이즈 필터 시간 연장 및 임계값 명시)
 ```
+**Claude Code 수정 완료 (2026-04-20):** throttle 임계값 5→2%, 최소 지속 50→200ms. TelemetryChart `extractDrsZones`도 `drs>=8`로 동시 수정. TypeScript 컴파일 통과.
 
 ---
 
@@ -192,11 +218,12 @@ speedGain  = maxSpeed - entrySpeed
 
 ```
 [결과 기록 영역]
-- DRS 채널 값 의미:
-- DRS 효과 정량화 방법:
-- 통제 변수:
-- 검증 판정: ✅ 통과 / ❌ 수정 필요
+- DRS 채널 값 의미: FastF1에서 `drs` 채널 값은 0(불가), 8(활성), 10/12/14(활성/열림) 등으로 나타납니다 (0, 1, 2, 3은 비활성). 따라서 단순히 값이 >0인지가 아니라 `drs >= 8`을 기준으로 DRS 활성화 여부를 판별해야 합니다.
+- DRS 효과 정량화 방법: 속도 이득(`speedGain`) 전체를 DRS 효과로 보는 것은 수학적으로 무리가 있습니다 (일반적인 엔진 가속도 포함되므로). UI 상에서 이를 "DRS Effect"가 아니라 "DRS Zone Speed Gain"으로 명명하여 DRS를 포함한 직선 가속 성능 지표임을 명확히 하세요.
+- 통제 변수: 진정한 비교를 위해서는 동일한 연료량(비슷한 랩 수), 타이어 수명, 슬립스트림(앞차와 1초 이내) 여부가 통제되어야 합니다. UI 툴팁으로 "연료량과 슬립스트림에 따라 속도 이득은 달라질 수 있습니다"라는 한계점을 고지할 것을 제안합니다.
+- 검증 판정: ❌ 수정 필요 (DRS 활성 조건 drs >= 8 적용 및 지표 명칭 변경)
 ```
+**Claude Code 수정 완료 (2026-04-20):** `drs >= 8` 조건 적용, Y축·툴팁 명칭 "DRS Zone Speed Gain"으로 변경, 한계 문구 추가. TypeScript 컴파일 통과.
 
 ---
 
